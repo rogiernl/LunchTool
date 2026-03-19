@@ -3,6 +3,56 @@ import { api } from '../api'
 import QRDisplay from './QRDisplay'
 import { StarRating } from './PlacesView'
 
+function ReceiptLightbox({ url, onClose }) {
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 text-white bg-black/40 rounded-full w-9 h-9 flex items-center justify-center hover:bg-black/60"
+      >
+        <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+      <img
+        src={url}
+        alt="Receipt"
+        className="max-h-[90vh] max-w-full rounded-lg shadow-2xl object-contain"
+        onClick={(e) => e.stopPropagation()}
+      />
+    </div>
+  )
+}
+
+function ReceiptThumb({ url }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button onClick={() => setOpen(true)} className="block w-full overflow-hidden focus:outline-none group">
+        <img
+          src={url}
+          alt="Receipt"
+          className="w-full object-cover transition-transform group-hover:scale-105"
+          style={{ maxHeight: '160px' }}
+        />
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-end justify-end p-2">
+          <span className="text-white text-xs bg-black/40 rounded px-2 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity">View receipt</span>
+        </div>
+      </button>
+      {open && <ReceiptLightbox url={url} onClose={() => setOpen(false)} />}
+    </>
+  )
+}
+
 function displayName(user) {
   return user?.friendly_name || user?.email || '?'
 }
@@ -177,10 +227,10 @@ export function SettlingCard({ session, me, onRefresh }) {
 
   return (
     <div className="bg-white rounded-lg shadow divide-y divide-gray-100">
-      {/* Image */}
+      {/* Receipt */}
       {session.image_url && (
-        <div className="h-40 overflow-hidden rounded-t-lg">
-          <img src={session.image_url} alt="" className="w-full h-full object-cover" />
+        <div className="relative overflow-hidden rounded-t-lg">
+          <ReceiptThumb url={session.image_url} />
         </div>
       )}
       {/* Header */}
@@ -485,8 +535,8 @@ function DoneCard({ session, me, onRefresh }) {
       {expanded && (
         <div className="border-t border-gray-100">
           {session.image_url && (
-            <div className="h-36 overflow-hidden">
-              <img src={session.image_url} alt="" className="w-full h-full object-cover" />
+            <div className="relative overflow-hidden">
+              <ReceiptThumb url={session.image_url} />
             </div>
           )}
         <div className="px-5 pb-4 pt-3 space-y-2">
