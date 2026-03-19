@@ -188,7 +188,7 @@ export default function VotingView({ session, places, me, onRefresh, onPlacesRef
                           </span>
                         )}
                         <LikeButton place={place} onRefresh={onPlacesRefresh || onRefresh} />
-                        <LastVisit date={place.last_visit} />
+                        <LastVisit date={place.last_visit} count={place.visit_count} />
                       </div>
                     </div>
                     {voteCounts[place.id] > 0 && (

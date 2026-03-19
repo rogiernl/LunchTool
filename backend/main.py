@@ -203,21 +203,23 @@ def s_place(p, db=None, user_id=None):
         "like_count": 0,
         "liked_by_me": False,
         "last_visit": None,
+        "visit_count": 0,
     }
     if db is not None:
         likes = db.query(PlaceLike).filter(PlaceLike.place_id == p.id).all()
         result["like_count"] = len(likes)
         result["liked_by_me"] = any(l.user_id == user_id for l in likes)
-        last = (
+        visits = (
             db.query(LunchSession)
             .filter(
                 LunchSession.selected_place_id == p.id,
                 LunchSession.status.in_(["done", "pickup", "ordering", "settling"]),
             )
             .order_by(LunchSession.date.desc())
-            .first()
+            .all()
         )
-        result["last_visit"] = last.date.isoformat() if last else None
+        result["last_visit"] = visits[0].date.isoformat() if visits else None
+        result["visit_count"] = len(visits)
     return result
 
 

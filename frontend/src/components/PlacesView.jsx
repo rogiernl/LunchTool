@@ -42,14 +42,16 @@ export function LikeButton({ place, onRefresh }) {
   )
 }
 
-export function LastVisit({ date }) {
-  if (!date) return null
+export function LastVisit({ date, count }) {
+  if (!date && !count) return null
+  const visitLabel = count === 1 ? '1 visit' : `${count} visits`
+  if (!date) return <span className="text-xs text-gray-400">{visitLabel}</span>
   const d = new Date(date + 'T12:00:00')
   const diffDays = Math.floor((Date.now() - d) / 86400000)
-  const label = diffDays === 0 ? 'today' : diffDays === 1 ? 'yesterday' : `${diffDays}d ago`
+  const whenLabel = diffDays === 0 ? 'today' : diffDays === 1 ? 'yesterday' : `${diffDays}d ago`
   return (
     <span className="text-xs text-gray-400" title={d.toLocaleDateString('nl-NL')}>
-      Last visit: {label}
+      {visitLabel} · last {whenLabel}
     </span>
   )
 }
@@ -464,7 +466,7 @@ export default function PlacesView({ places, me, onRefresh, config }) {
                     )}
                     <div className="flex items-center gap-3 mt-1">
                       <LikeButton place={place} onRefresh={onRefresh} />
-                      <LastVisit date={place.last_visit} />
+                      <LastVisit date={place.last_visit} count={place.visit_count} />
                     </div>
                   </div>
 
