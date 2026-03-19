@@ -308,43 +308,17 @@ async def get_weather(_: User = Depends(get_current_user)):
         lw = data.get("liveweer", [{}])[0]
         if lw.get("fout"):
             raise HTTPException(502, lw["fout"])
-        # Collect hourly forecasts for 12:00 and 13:00 (lunch window)
-        lunch_hours = {}
+        # Find the 12:00 hourly forecast (represents the 12–13u lunch hour)
+        h12 = None
         for h in data.get("uur_verw", []):
-            uur = h.get("uur", "")
-            if "12:00" in uur:
-                lunch_hours["12"] = h
-            elif "13:00" in uur:
-                lunch_hours["13"] = h
-        h12 = lunch_hours.get("12")
-        h13 = lunch_hours.get("13")
-        # Aggregate precipitation over the lunch window
-        rain_12 = float(h12.get("neersl") or 0) if h12 else 0
-        rain_13 = float(h13.get("neersl") or 0) if h13 else 0
-        lunch_rain_mm = round(rain_12 + rain_13, 1)
-        # Pick the "worst" image for the window (prefer rain/thunder/snow over sun)
-        def _severity(img):
-            img = img or ""
-            if "onweer" in img: return 5
-            if "sneeuw" in img or "hagel" in img: return 4
-            if "regen" in img or "buien" in img or "motregen" in img: return 3
-            if "bewolkt" in img or "wolken" in img: return 2
-            if "halfbewolkt" in img or "lichtbewolkt" in img: return 1
-            return 0
-        if h12 and h13:
-            lunch_image = h12["image"] if _severity(h12["image"]) >= _severity(h13["image"]) else h13["image"]
-        elif h12:
-            lunch_image = h12["image"]
-        elif h13:
-            lunch_image = h13["image"]
-        else:
-            lunch_image = None
+            if "12:00" in h.get("uur", ""):
+                h12 = h
+                break
         lunch = {
-            "temp_12": h12["temp"] if h12 else None,
-            "temp_13": h13["temp"] if h13 else None,
-            "image": lunch_image,
-            "rain_mm": lunch_rain_mm,
-        } if (h12 or h13) else None
+            "temp": h12["temp"],
+            "image": h12["image"],
+            "rain_mm": round(float(h12.get("neersl") or 0), 1),
+        } if h12 else None
         return {
             "temp": lw.get("temp"),
             "description": lw.get("samenv"),

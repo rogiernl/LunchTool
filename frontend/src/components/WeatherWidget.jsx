@@ -137,12 +137,9 @@ export default function WeatherWidget() {
       {/* Lunch window — primary */}
       {lunch && (
         <div className={`flex items-center gap-1.5 border-l border-gray-200 pl-3 ${hasRain ? 'text-blue-700' : 'text-gray-700'}`}>
-          <span className="text-gray-400 text-xs">12–13u</span>
+          <span className="text-gray-400 text-xs hidden sm:inline">expected lunch</span>
           <WeatherIcon image={lunch.image} className="w-5 h-5" />
-          <span className="font-semibold">
-            {lunch.temp_12 != null ? `${lunch.temp_12}°` : ''}
-            {lunch.temp_13 != null && lunch.temp_13 !== lunch.temp_12 ? `→${lunch.temp_13}°` : ''}
-          </span>
+          <span className="font-semibold">{lunch.temp}°</span>
           {hasRain ? (
             <span className={`flex items-center gap-0.5 font-semibold ${heavyRain ? 'text-blue-600' : 'text-blue-400'}`}>
               <RainDropIcon className="w-3 h-3" />
