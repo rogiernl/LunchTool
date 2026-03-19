@@ -103,6 +103,14 @@ function WeatherIcon({ image, className = 'w-6 h-6' }) {
   return <SunIcon className={`${className} text-yellow-400`} />
 }
 
+function RainDropIcon({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 2C12 2 5 10.5 5 15a7 7 0 0014 0C19 10.5 12 2 12 2z" />
+    </svg>
+  )
+}
+
 export default function WeatherWidget() {
   const [weather, setWeather] = useState(null)
 
@@ -114,28 +122,41 @@ export default function WeatherWidget() {
 
   if (!weather) return null
 
+  const lunch = weather.lunch
+  const hasRain = lunch && lunch.rain_mm > 0
+  const heavyRain = lunch && lunch.rain_mm >= 2
+
   return (
     <div className="flex items-center gap-3 text-sm">
-      <div className="flex items-center gap-1.5">
-        <WeatherIcon image={weather.image} className="w-6 h-6" />
-        <span className="font-semibold text-gray-800">{weather.temp}°C</span>
-        <span className="text-gray-500 hidden sm:inline">{weather.description}</span>
+      {/* Current conditions — small, secondary */}
+      <div className="flex items-center gap-1 text-xs text-gray-400 hidden sm:flex">
+        <WeatherIcon image={weather.image} className="w-4 h-4" />
+        <span>{weather.temp}°C</span>
       </div>
 
-      <span className="text-gray-400 text-xs hidden md:inline">
-        {weather.wind_bft} bft {weather.wind_dir}
-      </span>
-
-      {weather.noon && (
-        <div className="flex items-center gap-1.5 text-xs text-gray-500 border-l border-gray-200 pl-3">
-          <span className="text-gray-400">12u</span>
-          <WeatherIcon image={weather.noon.image} className="w-4 h-4" />
-          <span className="font-medium text-gray-700">{weather.noon.temp}°</span>
-          {weather.noon.rain_mm > 0 && (
-            <span className="text-blue-500">{weather.noon.rain_mm}mm</span>
+      {/* Lunch window — primary */}
+      {lunch && (
+        <div className={`flex items-center gap-1.5 border-l border-gray-200 pl-3 ${hasRain ? 'text-blue-700' : 'text-gray-700'}`}>
+          <span className="text-gray-400 text-xs">12–13u</span>
+          <WeatherIcon image={lunch.image} className="w-5 h-5" />
+          <span className="font-semibold">
+            {lunch.temp_12 != null ? `${lunch.temp_12}°` : ''}
+            {lunch.temp_13 != null && lunch.temp_13 !== lunch.temp_12 ? `→${lunch.temp_13}°` : ''}
+          </span>
+          {hasRain ? (
+            <span className={`flex items-center gap-0.5 font-semibold ${heavyRain ? 'text-blue-600' : 'text-blue-400'}`}>
+              <RainDropIcon className="w-3 h-3" />
+              {lunch.rain_mm}mm
+            </span>
+          ) : (
+            <span className="text-xs text-green-600 font-medium hidden md:inline">no rain</span>
           )}
         </div>
       )}
+
+      <span className="text-gray-400 text-xs hidden lg:inline">
+        {weather.wind_bft} bft {weather.wind_dir}
+      </span>
     </div>
   )
 }
