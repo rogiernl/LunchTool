@@ -155,41 +155,44 @@ export function SettlingCard({ session, me, onRefresh }) {
             )}
           </div>
           <div className="shrink-0 text-right">
-            {session.total_amount != null && (
+            {editingTotal ? (
+              <div className="flex items-center gap-1">
+                <span className="text-sm text-gray-400">€</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={totalInput}
+                  onChange={(e) => setTotalInput(e.target.value)}
+                  className="w-24 border border-orange-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  autoFocus
+                />
+                <button onClick={handleUpdateTotal} disabled={loading || !totalInput} className="text-xs px-2 py-1 bg-orange-500 text-white rounded hover:bg-orange-600 disabled:opacity-50">Save</button>
+                <button onClick={() => setEditingTotal(false)} className="text-xs px-2 py-1 border border-gray-300 rounded text-gray-600 hover:bg-gray-50">✕</button>
+              </div>
+            ) : session.total_amount != null ? (
               remaining > 0 ? (
                 <div>
                   <p className="text-xs text-gray-400">Remaining</p>
-                  {editingTotal ? (
-                    <div className="flex items-center gap-1 mt-1">
-                      <span className="text-sm text-gray-400">€</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={totalInput}
-                        onChange={(e) => setTotalInput(e.target.value)}
-                        className="w-24 border border-orange-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-                        autoFocus
-                      />
-                      <button onClick={handleUpdateTotal} disabled={loading || !totalInput} className="text-xs px-2 py-1 bg-orange-500 text-white rounded hover:bg-orange-600 disabled:opacity-50">Save</button>
-                      <button onClick={() => setEditingTotal(false)} className="text-xs px-2 py-1 border border-gray-300 rounded text-gray-600 hover:bg-gray-50">✕</button>
-                    </div>
-                  ) : (
-                    <div>
-                      <p className="text-2xl font-bold text-orange-600">€{remaining.toFixed(2)}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        of €{session.total_amount.toFixed(2)}
-                        {isHost && (
-                          <button onClick={() => { setEditingTotal(true); setTotalInput(String(session.total_amount)) }} className="ml-1.5 text-orange-400 hover:text-orange-600 underline">edit</button>
-                        )}
-                      </p>
-                    </div>
-                  )}
+                  <p className="text-2xl font-bold text-orange-600">€{remaining.toFixed(2)}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    of €{session.total_amount.toFixed(2)}
+                    {isHost && (
+                      <button onClick={() => { setEditingTotal(true); setTotalInput(String(session.total_amount)) }} className="ml-1.5 text-orange-400 hover:text-orange-600 underline">edit</button>
+                    )}
+                  </p>
                 </div>
               ) : (
                 <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">Settled ✓</span>
               )
-            )}
+            ) : isHost ? (
+              <button
+                onClick={() => setEditingTotal(true)}
+                className="text-sm text-orange-500 hover:text-orange-700 font-medium underline"
+              >
+                Set total
+              </button>
+            ) : null}
           </div>
         </div>
 
