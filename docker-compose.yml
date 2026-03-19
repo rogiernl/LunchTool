@@ -4,7 +4,7 @@ services:
     container_name: lunchtool-backend
     restart: unless-stopped
     volumes:
-      - lunch_data:/data
+      - ./data:/data
     environment:
       - DATABASE_URL=sqlite:////data/lunchtool.db
       - TZ=Europe/Amsterdam
@@ -25,9 +25,6 @@ services:
       - backend
     networks:
       - lunchtool
-
-volumes:
-  lunch_data:
 
 networks:
   lunchtool:
