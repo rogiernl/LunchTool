@@ -357,7 +357,14 @@ export default function PlacesView({ places, me, onRefresh, config }) {
                       )}
                       <StarRating rating={place.google_rating} />
                       {place.walking_minutes != null && (
-                        <span className="text-xs text-gray-500">🚶 {place.walking_minutes} min</span>
+                        <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="5" r="1.5" fill="currentColor" stroke="none"/>
+                            <path d="M9 12l2-4 3 3-1 5"/>
+                            <path d="M7 17l2-2M14 10l2 2-1 5"/>
+                          </svg>
+                          {place.walking_minutes} min
+                        </span>
                       )}
                     </div>
                     {place.description && (

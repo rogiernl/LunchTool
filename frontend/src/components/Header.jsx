@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import WeatherWidget from './WeatherWidget'
 
 export default function Header({ me, onUpdateName }) {
   const [editing, setEditing] = useState(false)
@@ -26,8 +27,9 @@ export default function Header({ me, onUpdateName }) {
   return (
     <header className="bg-white border-b shadow-sm">
       <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
           <span className="text-2xl font-bold text-orange-500">LunchTool</span>
+          <WeatherWidget />
         </div>
 
         <div className="flex items-center gap-3">

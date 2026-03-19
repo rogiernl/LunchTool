@@ -261,6 +261,46 @@ def get_config():
     }
 
 
+@app.get("/weather")
+async def get_weather(_: User = Depends(get_current_user)):
+    key = os.getenv("WEERLIVE_KEY")
+    if not key:
+        raise HTTPException(503, "Weather API key not configured")
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.get(
+                "https://weerlive.nl/api/weerlive_api_v2.php",
+                params={"key": key, "locatie": "Utrecht"},
+            )
+        data = resp.json()
+        lw = data.get("liveweer", [{}])[0]
+        if lw.get("fout"):
+            raise HTTPException(502, lw["fout"])
+        # Find hourly forecast closest to noon (12:00)
+        noon_forecast = None
+        for h in data.get("uur_verw", []):
+            if "12:00" in h.get("uur", ""):
+                noon_forecast = h
+                break
+        return {
+            "temp": lw.get("temp"),
+            "description": lw.get("samenv"),
+            "image": lw.get("image"),
+            "wind_bft": lw.get("windbft"),
+            "wind_dir": lw.get("windr"),
+            "forecast": lw.get("verw"),
+            "noon": {
+                "temp": noon_forecast["temp"],
+                "image": noon_forecast["image"],
+                "rain_mm": noon_forecast.get("neersl", 0),
+            } if noon_forecast else None,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(502, f"Weather fetch failed: {e}")
+
+
 @app.get("/places-autocomplete")
 async def places_autocomplete(q: str, _: User = Depends(get_current_user)):
     import logging

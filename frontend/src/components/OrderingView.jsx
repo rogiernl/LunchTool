@@ -85,7 +85,14 @@ export default function OrderingView({ session, me, onRefresh }) {
             )}
             <StarRating rating={session.selected_place?.google_rating} />
             {session.selected_place?.walking_minutes != null && (
-              <p className="text-sm text-gray-500 mt-1">🚶 {session.selected_place.walking_minutes} min walk from office</p>
+              <p className="inline-flex items-center gap-1.5 text-sm text-gray-500 mt-1">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="5" r="1.5" fill="currentColor" stroke="none"/>
+                  <path d="M9 12l2-4 3 3-1 5"/>
+                  <path d="M7 17l2-2M14 10l2 2-1 5"/>
+                </svg>
+                {session.selected_place.walking_minutes} min walk from office
+              </p>
             )}
             {session.selected_place?.has_order_ahead && (
               <span className="inline-block mt-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">

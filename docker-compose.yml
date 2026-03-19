@@ -9,6 +9,7 @@ services:
       - DATABASE_URL=sqlite:////data/lunchtool.db
       - TZ=Europe/Amsterdam
       - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY:-}
+      - WEERLIVE_KEY=${WEERLIVE_KEY:-}
       # DEV_EMAIL is only used when Cloudflare header is absent (local dev without CF tunnel)
       # - DEV_EMAIL=dev@example.com
     networks:
