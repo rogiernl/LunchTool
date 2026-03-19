@@ -62,6 +62,7 @@ class LunchSession(Base):
     pickup_time = Column(String, nullable=True)
     meal_type = Column(String, default="lunch")
     image_path = Column(String, nullable=True)
+    place_name = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     host = relationship("User", foreign_keys=[host_id])
     selected_place = relationship("LunchPlace", foreign_keys=[selected_place_id])
@@ -123,6 +124,7 @@ _add_column_if_missing("lunch_sessions", "meal_type", "TEXT")
 _add_column_if_missing("lunch_sessions", "image_path", "TEXT")
 _add_column_if_missing("lunch_sessions", "gratuity", "REAL")
 _add_column_if_missing("lunch_sessions", "attendee_count", "INTEGER")
+_add_column_if_missing("lunch_sessions", "place_name", "TEXT")
 
 
 # ─── App & middleware ─────────────────────────────────────────────────────────
@@ -661,7 +663,7 @@ def s_session(s, db):
         "date": s.date.isoformat(),
         "status": s.status,
         "host": s_user(s.host),
-        "selected_place": s_place(s.selected_place),
+        "selected_place": s_place(s.selected_place) if s.selected_place else ({"id": None, "name": s.place_name} if s.place_name else None),
         "pickup_location": s.pickup_location,
         "pickup_time": s.pickup_time,
         "payment_url": s.payment_url,
@@ -683,7 +685,8 @@ def list_sessions(db: DbSession = Depends(get_db), _: User = Depends(get_current
 
 class RetroactiveCreate(BaseModel):
     date: date
-    place_id: int
+    place_id: Optional[int] = None
+    place_name: Optional[str] = None
     total_amount: float
     meal_type: str = "lunch"
     gratuity: Optional[float] = None
@@ -694,19 +697,25 @@ class RetroactiveCreate(BaseModel):
 
 @app.post("/sessions/retroactive")
 def create_retroactive(body: RetroactiveCreate, db: DbSession = Depends(get_db), user: User = Depends(get_current_user)):
+    if not body.place_id and not body.place_name:
+        raise HTTPException(400, "Provide either a place_id or a place_name")
     if body.date > date.today():
         raise HTTPException(400, "Cannot create a session for a future date")
     existing = db.query(LunchSession).filter(LunchSession.date == body.date).first()
     if existing:
         raise HTTPException(400, "A session already exists for this date")
-    place = db.query(LunchPlace).filter(LunchPlace.id == body.place_id).first()
-    if not place:
-        raise HTTPException(404, "Place not found")
+    place_id = None
+    if body.place_id:
+        place = db.query(LunchPlace).filter(LunchPlace.id == body.place_id).first()
+        if not place:
+            raise HTTPException(404, "Place not found")
+        place_id = body.place_id
     s = LunchSession(
         date=body.date,
         status="settling",
         host_id=user.id,
-        selected_place_id=body.place_id,
+        selected_place_id=place_id,
+        place_name=body.place_name if not place_id else None,
         total_amount=body.total_amount,
         meal_type=body.meal_type,
         gratuity=body.gratuity,

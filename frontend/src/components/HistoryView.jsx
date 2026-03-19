@@ -541,6 +541,7 @@ function RetroactiveForm({ places, onCreated, onCancel }) {
   const [mealType, setMealType] = useState('lunch')
   const [date, setDate] = useState('')
   const [placeId, setPlaceId] = useState('')
+  const [placeName, setPlaceName] = useState('')
   const [totalAmount, setTotalAmount] = useState('')
   const [gratuity, setGratuity] = useState('')
   const [attendeeCount, setAttendeeCount] = useState('')
@@ -558,7 +559,8 @@ function RetroactiveForm({ places, onCreated, onCancel }) {
     try {
       const session = await api.createRetroactive({
         date,
-        place_id: parseInt(placeId),
+        place_id: placeId ? parseInt(placeId) : null,
+        place_name: !placeId && placeName.trim() ? placeName.trim() : null,
         total_amount: parseFloat(totalAmount),
         meal_type: mealType,
         gratuity: gratuity ? parseFloat(gratuity) : null,
@@ -624,17 +626,22 @@ function RetroactiveForm({ places, onCreated, onCancel }) {
         </div>
         <div className="flex-1">
           <label className="block text-sm font-medium text-gray-700 mb-1">Place *</label>
-          <select
-            value={placeId}
-            onChange={(e) => setPlaceId(e.target.value)}
+          <input
+            list="places-list"
+            value={placeName}
+            onChange={(e) => {
+              const val = e.target.value
+              setPlaceName(val)
+              const match = places.find((p) => p.name === val)
+              setPlaceId(match ? String(match.id) : '')
+            }}
+            placeholder="Select or type a name…"
             required
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-          >
-            <option value="">-- Select --</option>
-            {places.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
+          />
+          <datalist id="places-list">
+            {places.map((p) => <option key={p.id} value={p.name} />)}
+          </datalist>
         </div>
       </div>
 
@@ -725,7 +732,7 @@ function RetroactiveForm({ places, onCreated, onCancel }) {
       <div className="flex gap-2 pt-1">
         <button
           type="submit"
-          disabled={loading || !date || !placeId || !totalAmount}
+          disabled={loading || !date || (!placeId && !placeName.trim()) || !totalAmount}
           className="flex-1 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 disabled:opacity-50"
         >
           {loading ? 'Saving…' : 'Record'}
