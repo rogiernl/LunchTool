@@ -10,7 +10,7 @@ function displayName(user) {
 let _loader = null
 function getLoader(apiKey) {
   if (!_loader && apiKey) {
-    _loader = new Loader({ apiKey, version: 'weekly', libraries: ['places'] })
+    _loader = new Loader({ apiKey, version: 'weekly' })
   }
   return _loader
 }
@@ -22,30 +22,37 @@ function PlaceForm({ initial, onSave, onCancel, googleMapsApiKey }) {
   const [hasOrderAhead, setHasOrderAhead] = useState(initial?.has_order_ahead || false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const searchRef = useRef(null)
-  const autocompleteRef = useRef(null)
+  const containerRef = useRef(null)
 
   useEffect(() => {
     const loader = getLoader(googleMapsApiKey)
-    if (!loader || !searchRef.current) return
+    if (!loader || !containerRef.current) return
 
     let mounted = true
-    loader.load().then(() => {
-      if (!mounted || !searchRef.current) return
-      autocompleteRef.current = new window.google.maps.places.Autocomplete(searchRef.current, {
-        types: ['establishment'],
-        fields: ['name', 'formatted_address'],
-      })
-      autocompleteRef.current.addListener('place_changed', () => {
-        const place = autocompleteRef.current.getPlace()
-        if (place.name) setName((prev) => prev || place.name)
-        if (place.formatted_address) setAddress(place.formatted_address)
-        // Move focus to name field so user can review/edit
+    let el = null
+
+    loader.importLibrary('places').then(({ PlaceAutocompleteElement }) => {
+      if (!mounted || !containerRef.current) return
+
+      el = new PlaceAutocompleteElement({ types: ['establishment'] })
+      // Match the look of the other inputs
+      el.style.cssText = 'width:100%;font-size:0.875rem;'
+      containerRef.current.appendChild(el)
+
+      el.addEventListener('gmp-placeselect', async (event) => {
+        const { place } = event
+        await place.fetchFields({ fields: ['displayName', 'formattedAddress'] })
+        setName((prev) => prev || place.displayName || '')
+        setAddress(place.formattedAddress || '')
         document.getElementById('place-name-input')?.focus()
       })
     })
+
     return () => {
       mounted = false
+      if (el && containerRef.current?.contains(el)) {
+        containerRef.current.removeChild(el)
+      }
     }
   }, [googleMapsApiKey])
 
@@ -78,13 +85,7 @@ function PlaceForm({ initial, onSave, onCancel, googleMapsApiKey }) {
       {googleMapsApiKey && (
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Search for a business</label>
-          <input
-            ref={searchRef}
-            type="text"
-            placeholder="Type a restaurant or café name…"
-            className="w-full border border-orange-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-orange-50"
-            autoFocus={!initial}
-          />
+          <div ref={containerRef} className="w-full" />
           <p className="text-xs text-gray-400 mt-1">Select a result to auto-fill name and address</p>
         </div>
       )}
