@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from datetime import datetime, date, time
 from typing import Optional, List
 import os
+import httpx
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:////data/lunchtool.db")
 
@@ -228,6 +229,29 @@ class OrderCreate(BaseModel):
 @app.get("/config")
 def get_config():
     return {"google_maps_api_key": os.getenv("GOOGLE_MAPS_API_KEY", "")}
+
+
+@app.get("/place-details/{place_id}")
+async def get_place_details(place_id: str, _: User = Depends(get_current_user)):
+    api_key = os.getenv("GOOGLE_MAPS_API_KEY")
+    if not api_key:
+        raise HTTPException(400, "Google Maps API key not configured")
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"https://places.googleapis.com/v1/places/{place_id}",
+            headers={
+                "X-Goog-Api-Key": api_key,
+                "X-Goog-FieldMask": "displayName,formattedAddress,rating",
+            },
+        )
+    if not resp.is_success:
+        raise HTTPException(502, f"Places API error: {resp.text}")
+    data = resp.json()
+    return {
+        "name": data.get("displayName", {}).get("text", ""),
+        "address": data.get("formattedAddress", ""),
+        "rating": data.get("rating"),
+    }
 
 
 @app.get("/me")

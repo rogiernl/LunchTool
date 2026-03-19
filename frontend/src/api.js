@@ -15,6 +15,7 @@ async function req(method, path, body) {
 
 export const api = {
   getConfig: () => req('GET', '/config'),
+  getPlaceDetails: (placeId) => req('GET', `/place-details/${placeId}`),
   getMe: () => req('GET', '/me'),
   updateMe: (friendly_name) => req('PUT', '/me', { friendly_name }),
 

@@ -56,15 +56,17 @@ function PlaceForm({ initial, onSave, onCancel, googleMapsApiKey }) {
 
       el.addEventListener('gmp-placeselect', async (event) => {
         const { place } = event
+        // place.id is always available; fetch full details server-side
         try {
-          await place.fetchFields({ fields: ['displayName', 'formattedAddress', 'rating'] })
+          const details = await api.getPlaceDetails(place.id)
+          if (details.name) setName((prev) => prev || details.name)
+          if (details.address) setAddress(details.address)
+          if (details.rating != null) setGoogleRating(details.rating)
         } catch (err) {
-          console.warn('Places fetchFields error:', err)
+          // Fallback: use displayName from the autocomplete element itself
+          console.warn('Place details error:', err)
+          if (place.displayName) setName((prev) => prev || place.displayName)
         }
-        // displayName is always available (shown in dropdown), address/rating require fetchFields
-        if (place.displayName) setName((prev) => prev || place.displayName)
-        if (place.formattedAddress) setAddress(place.formattedAddress)
-        if (place.rating != null) setGoogleRating(place.rating)
         document.getElementById('place-name-input')?.focus()
       })
     })
