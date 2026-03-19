@@ -196,6 +196,7 @@ def get_db():
 
 
 def get_current_user(request: Request, db: DbSession = Depends(get_db)) -> User:
+    from sqlalchemy.exc import IntegrityError
     email = request.headers.get("Cf-Access-Authenticated-User-Email")
     if not email:
         email = os.getenv("DEV_EMAIL")
@@ -203,10 +204,14 @@ def get_current_user(request: Request, db: DbSession = Depends(get_db)) -> User:
         raise HTTPException(status_code=401, detail="Not authenticated via Cloudflare Zero Trust")
     user = db.query(User).filter(User.email == email).first()
     if not user:
-        user = User(email=email)
-        db.add(user)
-        db.commit()
-        db.refresh(user)
+        try:
+            user = User(email=email)
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+        except IntegrityError:
+            db.rollback()
+            user = db.query(User).filter(User.email == email).first()
     return user
 
 
