@@ -38,6 +38,13 @@ export const api = {
 
   getSessions: () => req('GET', '/sessions'),
   createRetroactive: (data) => req('POST', '/sessions/retroactive', data),
+  uploadSessionImage: async (sid, file) => {
+    const form = new FormData()
+    form.append('file', file)
+    const res = await fetch(`/api/sessions/${sid}/image`, { method: 'POST', body: form })
+    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || 'Upload failed') }
+    return res.json()
+  },
   addOrderToSession: (sid, item_description, amount) => req('POST', `/sessions/${sid}/orders`, { item_description, amount: amount || null }),
   markPaidInSession: (sid, oid) => req('PUT', `/sessions/${sid}/orders/${oid}/paid`, {}),
   setSessionPayment: (sid, payment_url) => req('PUT', `/sessions/${sid}/payment`, { payment_url }),

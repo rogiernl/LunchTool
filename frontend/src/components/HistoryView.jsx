@@ -7,6 +7,44 @@ function displayName(user) {
   return user?.friendly_name || user?.email || '?'
 }
 
+// ─── Meal type icons ──────────────────────────────────────────────────────────
+
+function LunchIcon({ className = 'w-5 h-5' }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 11l19-9-9 19-2-8-8-2z" />
+    </svg>
+  )
+}
+
+function DinnerIcon({ className = 'w-5 h-5' }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2a10 10 0 100 20A10 10 0 0012 2z" />
+      <path d="M12 6v6l4 2" />
+    </svg>
+  )
+}
+
+function DrinksIcon({ className = 'w-5 h-5' }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 22h8M12 11v11M3 3l4 8h10l4-8H3z" />
+    </svg>
+  )
+}
+
+const MEAL_TYPES = [
+  { value: 'lunch', label: 'Lunch', Icon: LunchIcon },
+  { value: 'dinner', label: 'Dinner', Icon: DinnerIcon },
+  { value: 'drinks', label: 'Drinks', Icon: DrinksIcon },
+]
+
+function MealIcon({ type, className }) {
+  const mt = MEAL_TYPES.find((m) => m.value === type) || MEAL_TYPES[0]
+  return <mt.Icon className={className} />
+}
+
 function formatDate(iso) {
   return new Date(iso).toLocaleDateString('nl-NL', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -128,13 +166,22 @@ export function SettlingCard({ session, me, onRefresh }) {
 
   return (
     <div className="bg-white rounded-lg shadow divide-y divide-gray-100">
+      {/* Image */}
+      {session.image_url && (
+        <div className="h-40 overflow-hidden rounded-t-lg">
+          <img src={session.image_url} alt="" className="w-full h-full object-cover" />
+        </div>
+      )}
       {/* Header */}
       <div className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">
-              {formatDate(session.date)}
-            </p>
+            <div className="flex items-center gap-2 mb-1">
+              <MealIcon type={session.meal_type} className="w-4 h-4 text-orange-500" />
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">
+                {MEAL_TYPES.find((m) => m.value === session.meal_type)?.label || 'Lunch'} · {formatDate(session.date)}
+              </p>
+            </div>
             <h3 className="text-xl font-bold text-gray-900">{session.selected_place?.name}</h3>
             {session.selected_place?.description && (
               <p className="text-sm text-gray-500 mt-0.5">{session.selected_place.description}</p>
@@ -319,6 +366,19 @@ export function SettlingCard({ session, me, onRefresh }) {
               <span>Total bill</span>
               <span>€{session.total_amount.toFixed(2)}</span>
             </div>
+            {session.gratuity != null && (
+              <div className="flex justify-between text-sm text-gray-500">
+                <span>
+                  Gratuity{session.attendee_count ? ` (${session.attendee_count} people)` : ''}
+                </span>
+                <span>
+                  €{session.gratuity.toFixed(2)}
+                  {session.attendee_count ? (
+                    <span className="text-gray-400 ml-1">· €{(session.gratuity / session.attendee_count).toFixed(2)}/p</span>
+                  ) : null}
+                </span>
+              </div>
+            )}
             <div className={`flex justify-between text-sm font-bold ${remaining > 0 ? 'text-orange-600' : 'text-green-600'}`}>
               <span>Remaining</span>
               <span>€{remaining.toFixed(2)}</span>
@@ -388,6 +448,7 @@ function DoneCard({ session, me, onRefresh }) {
         className="w-full text-left px-5 py-3.5 flex items-center justify-between hover:bg-gray-50 transition-colors"
       >
         <div className="flex items-center gap-3 min-w-0">
+          <MealIcon type={session.meal_type} className="w-4 h-4 text-gray-400 shrink-0" />
           <span className="font-medium text-gray-700 shrink-0">{formatDateShort(session.date)}</span>
           {session.selected_place && (
             <span className="text-sm text-gray-500 truncate">{session.selected_place.name}</span>
@@ -411,7 +472,13 @@ function DoneCard({ session, me, onRefresh }) {
       </button>
 
       {expanded && (
-        <div className="px-5 pb-4 border-t border-gray-100 pt-3 space-y-2">
+        <div className="border-t border-gray-100">
+          {session.image_url && (
+            <div className="h-36 overflow-hidden">
+              <img src={session.image_url} alt="" className="w-full h-full object-cover" />
+            </div>
+          )}
+        <div className="px-5 pb-4 pt-3 space-y-2">
           {session.selected_place?.address && (
             <p className="text-xs text-gray-400">{session.selected_place.address}</p>
           )}
@@ -444,6 +511,13 @@ function DoneCard({ session, me, onRefresh }) {
               ))}
             </ul>
           )}
+          {session.gratuity != null && (
+            <p className="text-sm text-gray-500">
+              Gratuity: <span className="font-medium">€{session.gratuity.toFixed(2)}</span>
+              {session.attendee_count ? <span className="text-gray-400 ml-1">· €{(session.gratuity / session.attendee_count).toFixed(2)}/p ({session.attendee_count} people)</span> : null}
+            </p>
+          )}
+        </div>
         </div>
       )}
     </div>
@@ -453,11 +527,15 @@ function DoneCard({ session, me, onRefresh }) {
 // ─── Record form ─────────────────────────────────────────────────────────────
 
 function RetroactiveForm({ places, onCreated, onCancel }) {
+  const [mealType, setMealType] = useState('lunch')
   const [date, setDate] = useState('')
   const [placeId, setPlaceId] = useState('')
   const [totalAmount, setTotalAmount] = useState('')
+  const [gratuity, setGratuity] = useState('')
+  const [attendeeCount, setAttendeeCount] = useState('')
   const [pickupLocation, setPickupLocation] = useState('')
   const [pickupTime, setPickupTime] = useState('')
+  const [imageFile, setImageFile] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -471,9 +549,15 @@ function RetroactiveForm({ places, onCreated, onCancel }) {
         date,
         place_id: parseInt(placeId),
         total_amount: parseFloat(totalAmount),
+        meal_type: mealType,
+        gratuity: gratuity ? parseFloat(gratuity) : null,
+        attendee_count: attendeeCount ? parseInt(attendeeCount) : null,
         pickup_location: pickupLocation.trim() || null,
         pickup_time: pickupTime.trim() || null,
       })
+      if (imageFile) {
+        await api.uploadSessionImage(session.id, imageFile).catch(() => {})
+      }
       onCreated(session)
     } catch (e) {
       setError(e.message)
@@ -483,13 +567,38 @@ function RetroactiveForm({ places, onCreated, onCancel }) {
   }
 
   const today = new Date().toISOString().slice(0, 10)
+  const gratuityPerPerson = gratuity && attendeeCount ? (parseFloat(gratuity) / parseInt(attendeeCount)).toFixed(2) : null
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-5 space-y-3">
-      <h3 className="text-sm font-semibold text-gray-700">Record a past lunch</h3>
+    <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-5 space-y-4">
+      <h3 className="text-sm font-semibold text-gray-700">Record a past outing</h3>
       {error && (
         <div className="bg-red-50 border border-red-200 rounded p-2 text-red-700 text-sm">{error}</div>
       )}
+
+      {/* Meal type */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
+        <div className="flex gap-2">
+          {MEAL_TYPES.map(({ value, label, Icon }) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setMealType(value)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 text-sm font-medium transition-colors ${
+                mealType === value
+                  ? 'border-orange-500 bg-orange-50 text-orange-700'
+                  : 'border-gray-200 text-gray-600 hover:border-gray-300'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Date + place */}
       <div className="flex gap-3">
         <div className="flex-1">
           <label className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
@@ -503,7 +612,7 @@ function RetroactiveForm({ places, onCreated, onCancel }) {
           />
         </div>
         <div className="flex-1">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Lunch place *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Place *</label>
           <select
             value={placeId}
             onChange={(e) => setPlaceId(e.target.value)}
@@ -516,29 +625,59 @@ function RetroactiveForm({ places, onCreated, onCancel }) {
             ))}
           </select>
         </div>
-        <div className="w-32">
+      </div>
+
+      {/* Bill + gratuity + attendees */}
+      <div className="flex gap-3">
+        <div className="w-36">
           <label className="block text-sm font-medium text-gray-700 mb-1">Total bill *</label>
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">€</span>
             <input
-              type="number"
-              step="0.01"
-              min="0.01"
+              type="number" step="0.01" min="0.01"
               value={totalAmount}
               onChange={(e) => setTotalAmount(e.target.value)}
-              placeholder="0.00"
-              required
+              placeholder="0.00" required
               className="w-full border border-gray-300 rounded-lg pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
             />
           </div>
         </div>
+        <div className="w-36">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Gratuity</label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">€</span>
+            <input
+              type="number" step="0.01" min="0"
+              value={gratuity}
+              onChange={(e) => setGratuity(e.target.value)}
+              placeholder="0.00"
+              className="w-full border border-gray-300 rounded-lg pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+          </div>
+        </div>
+        <div className="w-28">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Attendees</label>
+          <input
+            type="number" step="1" min="1"
+            value={attendeeCount}
+            onChange={(e) => setAttendeeCount(e.target.value)}
+            placeholder="—"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+          />
+        </div>
+        {gratuityPerPerson && (
+          <div className="flex items-end pb-2 text-sm text-gray-500">
+            = €{gratuityPerPerson}/p
+          </div>
+        )}
       </div>
+
+      {/* Location + time */}
       <div className="flex gap-3">
         <div className="flex-1">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Pickup location</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
           <input
-            type="text"
-            value={pickupLocation}
+            type="text" value={pickupLocation}
             onChange={(e) => setPickupLocation(e.target.value)}
             placeholder="e.g. Main entrance"
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
@@ -547,20 +686,38 @@ function RetroactiveForm({ places, onCreated, onCancel }) {
         <div className="w-28">
           <label className="block text-sm font-medium text-gray-700 mb-1">Time</label>
           <input
-            type="time"
-            value={pickupTime}
+            type="time" value={pickupTime}
             onChange={(e) => setPickupTime(e.target.value)}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
           />
         </div>
       </div>
+
+      {/* Image */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Photo</label>
+        <input
+          type="file"
+          accept="image/*"
+          onChange={(e) => setImageFile(e.target.files?.[0] || null)}
+          className="w-full text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
+        />
+        {imageFile && (
+          <img
+            src={URL.createObjectURL(imageFile)}
+            alt="preview"
+            className="mt-2 h-24 rounded-lg object-cover"
+          />
+        )}
+      </div>
+
       <div className="flex gap-2 pt-1">
         <button
           type="submit"
           disabled={loading || !date || !placeId || !totalAmount}
           className="flex-1 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 disabled:opacity-50"
         >
-          {loading ? 'Saving…' : 'Record lunch'}
+          {loading ? 'Saving…' : 'Record'}
         </button>
         <button
           type="button"
@@ -606,13 +763,13 @@ export default function HistoryView({ places, me }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-gray-900">Lunch History</h2>
+        <h2 className="text-lg font-bold text-gray-900">History</h2>
         {!showForm && (
           <button
             onClick={() => setShowForm(true)}
             className="py-2 px-4 bg-orange-500 text-white text-sm rounded-lg font-medium hover:bg-orange-600 transition-colors"
           >
-            + Record past lunch
+            + Record outing
           </button>
         )}
       </div>

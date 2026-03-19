@@ -1,5 +1,6 @@
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import FastAPI, Depends, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, ForeignKey, Date, Float, text
 from sqlalchemy.orm import declarative_base, sessionmaker, Session as DbSession, relationship
 from pydantic import BaseModel
@@ -8,6 +9,8 @@ from typing import Optional, List
 import os
 import asyncio
 import httpx
+import shutil
+import pathlib
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:////data/lunchtool.db")
 
@@ -52,9 +55,13 @@ class LunchSession(Base):
     selected_place_id = Column(Integer, ForeignKey("lunch_places.id"), nullable=True)
     vote_deadline = Column(DateTime, nullable=True)
     total_amount = Column(Float, nullable=True)
+    gratuity = Column(Float, nullable=True)
+    attendee_count = Column(Integer, nullable=True)
     payment_url = Column(String, nullable=True)
     pickup_location = Column(String, nullable=True)
     pickup_time = Column(String, nullable=True)
+    meal_type = Column(String, default="lunch")
+    image_path = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     host = relationship("User", foreign_keys=[host_id])
     selected_place = relationship("LunchPlace", foreign_keys=[selected_place_id])
@@ -112,6 +119,10 @@ _add_column_if_missing("lunch_sessions", "vote_deadline", "DATETIME")
 _add_column_if_missing("lunch_sessions", "total_amount", "REAL")
 _add_column_if_missing("lunch_places", "google_rating", "REAL")
 _add_column_if_missing("session_orders", "amount", "REAL")
+_add_column_if_missing("lunch_sessions", "meal_type", "TEXT")
+_add_column_if_missing("lunch_sessions", "image_path", "TEXT")
+_add_column_if_missing("lunch_sessions", "gratuity", "REAL")
+_add_column_if_missing("lunch_sessions", "attendee_count", "INTEGER")
 
 
 # ─── App & middleware ─────────────────────────────────────────────────────────
@@ -120,7 +131,11 @@ OFFICE_ADDRESS = "Boven Vredenburgpassage 128, Utrecht, Netherlands"
 OFFICE_LAT = 52.0919
 OFFICE_LNG = 5.1183
 
+IMAGES_DIR = pathlib.Path("/data/images")
+IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+
 app = FastAPI(title="LunchTool")
+app.mount("/images", StaticFiles(directory=str(IMAGES_DIR)), name="images")
 
 app.add_middleware(
     CORSMiddleware,
@@ -651,6 +666,10 @@ def s_session(s, db):
         "pickup_time": s.pickup_time,
         "payment_url": s.payment_url,
         "total_amount": s.total_amount,
+        "gratuity": s.gratuity,
+        "attendee_count": s.attendee_count,
+        "meal_type": s.meal_type or "lunch",
+        "image_url": f"/api/images/{s.image_path}" if s.image_path else None,
         "votes": [s_vote(v) for v in votes],
         "orders": [s_order(o) for o in orders],
     }
@@ -666,6 +685,9 @@ class RetroactiveCreate(BaseModel):
     date: date
     place_id: int
     total_amount: float
+    meal_type: str = "lunch"
+    gratuity: Optional[float] = None
+    attendee_count: Optional[int] = None
     pickup_location: Optional[str] = None
     pickup_time: Optional[str] = None
 
@@ -686,6 +708,9 @@ def create_retroactive(body: RetroactiveCreate, db: DbSession = Depends(get_db),
         host_id=user.id,
         selected_place_id=body.place_id,
         total_amount=body.total_amount,
+        meal_type=body.meal_type,
+        gratuity=body.gratuity,
+        attendee_count=body.attendee_count,
         pickup_location=body.pickup_location,
         pickup_time=body.pickup_time,
     )
@@ -693,6 +718,23 @@ def create_retroactive(body: RetroactiveCreate, db: DbSession = Depends(get_db),
     db.commit()
     db.refresh(s)
     return s_session(s, db)
+
+
+@app.post("/sessions/{sid}/image")
+async def upload_session_image(sid: int, file: UploadFile = File(...), db: DbSession = Depends(get_db), user: User = Depends(get_current_user)):
+    s = db.query(LunchSession).filter(LunchSession.id == sid).first()
+    if not s:
+        raise HTTPException(404, "Session not found")
+    ext = pathlib.Path(file.filename).suffix.lower()
+    if ext not in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
+        raise HTTPException(400, "Unsupported image type")
+    filename = f"session_{sid}{ext}"
+    dest = IMAGES_DIR / filename
+    with dest.open("wb") as f:
+        shutil.copyfileobj(file.file, f)
+    s.image_path = filename
+    db.commit()
+    return {"image_url": f"/api/images/{filename}"}
 
 
 @app.post("/sessions/{sid}/orders")
