@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import QRCode from 'react-qr-code'
 import { api } from '../api'
 import { StarRating } from './PlacesView'
 
@@ -8,74 +9,45 @@ function displayName(user) {
 
 function formatDate(iso) {
   return new Date(iso).toLocaleDateString('nl-NL', {
-    weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
   })
 }
 
-function OrderRow({ order, sessionId, me, onRefresh }) {
-  const isOwn = order.user.id === me.id
-  const [loading, setLoading] = useState(false)
-
-  const handlePaid = async () => {
-    setLoading(true)
-    try {
-      await api.markPaidInSession(sessionId, order.id)
-      await onRefresh()
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <div className="flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0">
-      <div>
-        <span className="text-sm font-medium text-gray-800">{displayName(order.user)}</span>
-        {order.item_description && (
-          <span className="text-sm text-gray-500 ml-2">{order.item_description}</span>
-        )}
-      </div>
-      <div className="flex items-center gap-2 shrink-0">
-        {order.amount != null && (
-          <span className="text-sm text-gray-600">€{order.amount.toFixed(2)}</span>
-        )}
-        {order.is_paid ? (
-          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Paid</span>
-        ) : isOwn ? (
-          <button
-            onClick={handlePaid}
-            disabled={loading}
-            className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full hover:bg-orange-200 disabled:opacity-50"
-          >
-            {loading ? '…' : 'Mark paid'}
-          </button>
-        ) : (
-          <span className="text-xs bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full">Unpaid</span>
-        )}
-      </div>
-    </div>
-  )
+function formatDateShort(iso) {
+  return new Date(iso).toLocaleDateString('nl-NL', {
+    weekday: 'short', month: 'short', day: 'numeric',
+  })
 }
 
-function SessionCard({ session, places, me, onRefresh }) {
-  const [expanded, setExpanded] = useState(false)
-  const [showOrderForm, setShowOrderForm] = useState(false)
-  const [item, setItem] = useState('')
-  const [amount, setAmount] = useState('')
+// ─── Settling session card (open, needs settlement) ──────────────────────────
+
+function SettlingCard({ session, me, onRefresh }) {
+  const [orderText, setOrderText] = useState('')
+  const [orderAmount, setOrderAmount] = useState('')
+  const [paymentUrl, setPaymentUrl] = useState(session.payment_url || '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
   const myOrder = session.orders.find((o) => o.user.id === me.id)
+  const isHost = session.host?.id === me.id
+  const total = session.orders.reduce((s, o) => s + (o.amount || 0), 0)
+  const unpaidTotal = session.orders.reduce((s, o) => s + (o.is_paid ? 0 : (o.amount || 0)), 0)
 
-  const handleAddOrder = async (e) => {
+  // Pre-fill my order if it exists
+  useEffect(() => {
+    if (myOrder) {
+      setOrderText(myOrder.item_description || '')
+      setOrderAmount(myOrder.amount != null ? String(myOrder.amount) : '')
+    }
+  }, [])
+
+  const handleOrder = async (e) => {
     e.preventDefault()
-    if (!item.trim()) return
+    if (!orderText.trim()) return
     setLoading(true)
     setError(null)
     try {
-      await api.addOrderToSession(session.id, item.trim(), amount ? parseFloat(amount) : null)
-      setShowOrderForm(false)
-      setItem('')
-      setAmount('')
+      await api.addOrderToSession(session.id, orderText.trim(), orderAmount ? parseFloat(orderAmount) : null)
       await onRefresh()
     } catch (e) {
       setError(e.message)
@@ -84,16 +56,266 @@ function SessionCard({ session, places, me, onRefresh }) {
     }
   }
 
+  const handleSetPayment = async () => {
+    if (!paymentUrl.trim()) return
+    setLoading(true)
+    setError(null)
+    try {
+      await api.setSessionPayment(session.id, paymentUrl.trim())
+      await onRefresh()
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleBecomeHost = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      await api.takeSessionHost(session.id)
+      await onRefresh()
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleMarkPaid = async (oid) => {
+    setLoading(true)
+    try {
+      await api.markPaidInSession(session.id, oid)
+      await onRefresh()
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow divide-y divide-gray-100">
+      {/* Header */}
+      <div className="p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">
+              {formatDate(session.date)}
+            </p>
+            <h3 className="text-xl font-bold text-gray-900">{session.selected_place?.name}</h3>
+            {session.selected_place?.description && (
+              <p className="text-sm text-gray-500 mt-0.5">{session.selected_place.description}</p>
+            )}
+            {session.selected_place?.address && (
+              <p className="text-sm text-gray-400 mt-0.5">{session.selected_place.address}</p>
+            )}
+            {session.selected_place?.google_rating != null && (
+              <div className="mt-1">
+                <StarRating rating={session.selected_place.google_rating} />
+              </div>
+            )}
+            {(session.pickup_location || session.pickup_time) && (
+              <p className="text-sm text-gray-600 mt-1">
+                Pickup: <span className="font-medium">{session.pickup_location}</span>
+                {session.pickup_time && <span className="text-gray-400 ml-1">at {session.pickup_time}</span>}
+              </p>
+            )}
+          </div>
+          <div className="shrink-0 text-right">
+            {unpaidTotal > 0 ? (
+              <div>
+                <p className="text-xs text-gray-400">Outstanding</p>
+                <p className="text-lg font-bold text-orange-600">€{unpaidTotal.toFixed(2)}</p>
+              </div>
+            ) : session.orders.length > 0 ? (
+              <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">All settled</span>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Host */}
+        {session.host ? (
+          <p className="text-sm text-gray-500 mt-2">
+            Host: <span className="font-medium text-gray-700">{displayName(session.host)}</span>
+          </p>
+        ) : (
+          <button
+            onClick={handleBecomeHost}
+            disabled={loading}
+            className="mt-2 text-sm text-orange-600 hover:text-orange-700 font-medium disabled:opacity-50"
+          >
+            + Become host
+          </button>
+        )}
+      </div>
+
+      {error && (
+        <div className="px-5 py-3 bg-red-50 text-red-700 text-sm">{error}</div>
+      )}
+
+      {/* Payment */}
+      <div className="p-5">
+        <h4 className="text-sm font-semibold text-gray-700 mb-3">Payment</h4>
+        {session.payment_url ? (
+          <div className="flex flex-col items-center gap-3">
+            <div className="bg-white p-3 rounded-lg border border-gray-200">
+              <QRCode value={session.payment_url} size={160} />
+            </div>
+            <a
+              href={session.payment_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-orange-600 hover:underline break-all text-center"
+            >
+              {session.payment_url}
+            </a>
+            {isHost && (
+              <div className="w-full flex gap-2">
+                <input
+                  type="url"
+                  value={paymentUrl}
+                  onChange={(e) => setPaymentUrl(e.target.value)}
+                  placeholder="Update payment URL"
+                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                />
+                <button
+                  onClick={handleSetPayment}
+                  disabled={loading || !paymentUrl.trim()}
+                  className="px-4 py-2 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 disabled:opacity-50"
+                >
+                  Update
+                </button>
+              </div>
+            )}
+          </div>
+        ) : isHost ? (
+          <div className="flex gap-2">
+            <input
+              type="url"
+              value={paymentUrl}
+              onChange={(e) => setPaymentUrl(e.target.value)}
+              placeholder="https://tikkie.me/pay/..."
+              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+            <button
+              onClick={handleSetPayment}
+              disabled={loading || !paymentUrl.trim()}
+              className="px-4 py-2 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 disabled:opacity-50"
+            >
+              Share
+            </button>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-400 italic">Waiting for host to share payment link…</p>
+        )}
+      </div>
+
+      {/* Orders */}
+      <div className="p-5">
+        <h4 className="text-sm font-semibold text-gray-700 mb-3">
+          Orders{' '}
+          <span className="font-normal text-gray-400">({session.orders.length})</span>
+        </h4>
+
+        {session.orders.length > 0 && (
+          <ul className="divide-y divide-gray-100 mb-3">
+            {session.orders.map((order) => {
+              const isOwn = order.user.id === me.id
+              return (
+                <li key={order.id} className="py-2.5 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <span className="text-sm font-medium text-gray-800">{displayName(order.user)}</span>
+                    {order.item_description && (
+                      <>
+                        <span className="text-gray-300 mx-1.5">—</span>
+                        <span className="text-sm text-gray-600">{order.item_description}</span>
+                      </>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {order.amount != null && (
+                      <span className="text-sm font-medium text-gray-700">€{order.amount.toFixed(2)}</span>
+                    )}
+                    {order.is_paid ? (
+                      <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Paid</span>
+                    ) : isOwn ? (
+                      <button
+                        onClick={() => handleMarkPaid(order.id)}
+                        disabled={loading}
+                        className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full hover:bg-orange-200 disabled:opacity-50"
+                      >
+                        Mark paid
+                      </button>
+                    ) : (
+                      <span className="text-xs bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full">Unpaid</span>
+                    )}
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+
+        {total > 0 && (
+          <div className="flex justify-between text-sm font-semibold text-gray-800 pt-2 border-t border-gray-100 mb-4">
+            <span>Total</span>
+            <span>€{total.toFixed(2)}</span>
+          </div>
+        )}
+
+        {/* Add / update my order */}
+        <form onSubmit={handleOrder} className="space-y-2 pt-1">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={orderText}
+              onChange={(e) => setOrderText(e.target.value)}
+              placeholder={myOrder ? 'Update your order…' : 'What did you have?'}
+              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+              required
+            />
+            <div className="relative w-28">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">€</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={orderAmount}
+                onChange={(e) => setOrderAmount(e.target.value)}
+                placeholder="0.00"
+                className="w-full border border-gray-300 rounded-lg pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+              />
+            </div>
+          </div>
+          <button
+            type="submit"
+            disabled={loading || !orderText.trim()}
+            className="w-full py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 disabled:opacity-50"
+          >
+            {loading ? 'Saving…' : myOrder ? 'Update my order' : 'Add my order'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ─── Done session row (collapsed history) ────────────────────────────────────
+
+function DoneCard({ session, me, onRefresh }) {
+  const [expanded, setExpanded] = useState(false)
   const total = session.orders.reduce((s, o) => s + (o.amount || 0), 0)
 
   return (
     <div className="bg-white rounded-lg shadow overflow-hidden">
       <button
         onClick={() => setExpanded((v) => !v)}
-        className="w-full text-left px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+        className="w-full text-left px-5 py-3.5 flex items-center justify-between hover:bg-gray-50 transition-colors"
       >
         <div className="flex items-center gap-3 min-w-0">
-          <span className="font-semibold text-gray-900 shrink-0">{formatDate(session.date)}</span>
+          <span className="font-medium text-gray-700 shrink-0">{formatDateShort(session.date)}</span>
           {session.selected_place && (
             <span className="text-sm text-gray-500 truncate">{session.selected_place.name}</span>
           )}
@@ -101,7 +323,8 @@ function SessionCard({ session, places, me, onRefresh }) {
             <StarRating rating={session.selected_place.google_rating} />
           )}
         </div>
-        <div className="flex items-center gap-2 shrink-0 ml-3">
+        <div className="flex items-center gap-3 shrink-0 ml-2">
+          {total > 0 && <span className="text-sm text-gray-400">€{total.toFixed(2)}</span>}
           {session.orders.length > 0 && (
             <span className="text-xs text-gray-400">{session.orders.length} order{session.orders.length !== 1 ? 's' : ''}</span>
           )}
@@ -115,87 +338,38 @@ function SessionCard({ session, places, me, onRefresh }) {
       </button>
 
       {expanded && (
-        <div className="px-5 pb-4 border-t border-gray-100 space-y-3 pt-3">
-          {session.selected_place && (
-            <div className="text-sm text-gray-600 space-y-0.5">
-              {session.selected_place.address && (
-                <div className="text-gray-400 text-xs">{session.selected_place.address}</div>
-              )}
-              {session.pickup_location && (
-                <div>Pickup: <span className="font-medium">{session.pickup_location}</span>
-                  {session.pickup_time && <span className="text-gray-400 ml-1">at {session.pickup_time}</span>}
-                </div>
-              )}
-              {session.host && (
-                <div>Host: <span className="font-medium">{displayName(session.host)}</span></div>
-              )}
-            </div>
+        <div className="px-5 pb-4 border-t border-gray-100 pt-3 space-y-2">
+          {session.selected_place?.address && (
+            <p className="text-xs text-gray-400">{session.selected_place.address}</p>
           )}
-
+          {session.pickup_location && (
+            <p className="text-sm text-gray-600">
+              Pickup: <span className="font-medium">{session.pickup_location}</span>
+              {session.pickup_time && <span className="text-gray-400 ml-1">at {session.pickup_time}</span>}
+            </p>
+          )}
+          {session.host && (
+            <p className="text-sm text-gray-600">Host: <span className="font-medium">{displayName(session.host)}</span></p>
+          )}
           {session.orders.length > 0 && (
-            <div>
-              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Orders</div>
-              {session.orders.map((o) => (
-                <OrderRow key={o.id} order={o} sessionId={session.id} me={me} onRefresh={onRefresh} />
+            <ul className="divide-y divide-gray-100 mt-2">
+              {session.orders.map((order) => (
+                <li key={order.id} className="py-2 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <span className="text-sm font-medium text-gray-800">{displayName(order.user)}</span>
+                    {order.item_description && (
+                      <>
+                        <span className="text-gray-300 mx-1.5">—</span>
+                        <span className="text-sm text-gray-600">{order.item_description}</span>
+                      </>
+                    )}
+                  </div>
+                  {order.amount != null && (
+                    <span className="text-sm font-medium text-gray-700 shrink-0">€{order.amount.toFixed(2)}</span>
+                  )}
+                </li>
               ))}
-              {total > 0 && (
-                <div className="text-right text-sm font-medium text-gray-700 mt-2">
-                  Total: €{total.toFixed(2)}
-                </div>
-              )}
-            </div>
-          )}
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded p-2 text-red-700 text-sm">{error}</div>
-          )}
-
-          {showOrderForm ? (
-            <form onSubmit={handleAddOrder} className="space-y-2 pt-1">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={item}
-                  onChange={(e) => setItem(e.target.value)}
-                  placeholder={myOrder ? 'Update your order…' : 'What did you have?'}
-                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-                  autoFocus
-                  required
-                />
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="€"
-                  className="w-20 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-                />
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="submit"
-                  disabled={loading || !item.trim()}
-                  className="flex-1 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 disabled:opacity-50"
-                >
-                  {loading ? 'Saving…' : myOrder ? 'Update order' : 'Add order'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setShowOrderForm(false); setItem(''); setAmount('') }}
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          ) : (
-            <button
-              onClick={() => { setShowOrderForm(true); setItem(myOrder?.item_description || ''); setAmount(myOrder?.amount ?? '') }}
-              className="text-sm text-orange-600 hover:text-orange-700 font-medium"
-            >
-              {myOrder ? 'Edit my order' : '+ Add my order'}
-            </button>
+            </ul>
           )}
         </div>
       )}
@@ -203,7 +377,9 @@ function SessionCard({ session, places, me, onRefresh }) {
   )
 }
 
-function RetroactiveForm({ places, me, onCreated, onCancel }) {
+// ─── Record form ─────────────────────────────────────────────────────────────
+
+function RetroactiveForm({ places, onCreated, onCancel }) {
   const [date, setDate] = useState('')
   const [placeId, setPlaceId] = useState('')
   const [pickupLocation, setPickupLocation] = useState('')
@@ -239,32 +415,34 @@ function RetroactiveForm({ places, me, onCreated, onCancel }) {
       {error && (
         <div className="bg-red-50 border border-red-200 rounded p-2 text-red-700 text-sm">{error}</div>
       )}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
-        <input
-          type="date"
-          value={date}
-          max={today}
-          onChange={(e) => setDate(e.target.value)}
-          required
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-        />
+      <div className="flex gap-3">
+        <div className="flex-1">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
+          <input
+            type="date"
+            value={date}
+            max={today}
+            onChange={(e) => setDate(e.target.value)}
+            required
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+          />
+        </div>
+        <div className="flex-1">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Lunch place *</label>
+          <select
+            value={placeId}
+            onChange={(e) => setPlaceId(e.target.value)}
+            required
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+          >
+            <option value="">-- Select --</option>
+            {places.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+        </div>
       </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Lunch place *</label>
-        <select
-          value={placeId}
-          onChange={(e) => setPlaceId(e.target.value)}
-          required
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-        >
-          <option value="">-- Select a place --</option>
-          {places.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </select>
-      </div>
-      <div className="flex gap-2">
+      <div className="flex gap-3">
         <div className="flex-1">
           <label className="block text-sm font-medium text-gray-700 mb-1">Pickup location</label>
           <input
@@ -305,6 +483,8 @@ function RetroactiveForm({ places, me, onCreated, onCancel }) {
   )
 }
 
+// ─── Main view ───────────────────────────────────────────────────────────────
+
 export default function HistoryView({ places, me }) {
   const [sessions, setSessions] = useState(null)
   const [showForm, setShowForm] = useState(false)
@@ -326,43 +506,65 @@ export default function HistoryView({ places, me }) {
     setSessions((prev) => [session, ...(prev || [])])
   }
 
+  const settling = sessions?.filter((s) => s.status === 'settling') || []
+  const done = sessions?.filter((s) => s.status === 'done') || []
+
   if (error) return (
     <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">{error}</div>
   )
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-gray-900">Lunch History</h2>
-        {!showForm && (
-          <button
-            onClick={() => setShowForm(true)}
-            className="py-2 px-4 bg-orange-500 text-white text-sm rounded-lg font-medium hover:bg-orange-600 transition-colors"
-          >
-            + Record past lunch
-          </button>
+    <div className="space-y-6">
+      {/* Open / settling sessions */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold text-gray-900">
+            Open lunches
+            {settling.length > 0 && (
+              <span className="ml-2 text-sm font-normal text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full">
+                {settling.length}
+              </span>
+            )}
+          </h2>
+          {!showForm && (
+            <button
+              onClick={() => setShowForm(true)}
+              className="py-2 px-4 bg-orange-500 text-white text-sm rounded-lg font-medium hover:bg-orange-600 transition-colors"
+            >
+              + Record past lunch
+            </button>
+          )}
+        </div>
+
+        {showForm && (
+          <RetroactiveForm
+            places={places}
+            onCreated={handleCreated}
+            onCancel={() => setShowForm(false)}
+          />
+        )}
+
+        {sessions === null ? (
+          <div className="text-gray-400 text-sm">Loading…</div>
+        ) : settling.length === 0 && !showForm ? (
+          <div className="bg-white rounded-lg shadow p-6 text-center text-gray-400 text-sm">
+            No open lunches — all settled!
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {settling.map((s) => (
+              <SettlingCard key={s.id} session={s} me={me} onRefresh={load} />
+            ))}
+          </div>
         )}
       </div>
 
-      {showForm && (
-        <RetroactiveForm
-          places={places}
-          me={me}
-          onCreated={handleCreated}
-          onCancel={() => setShowForm(false)}
-        />
-      )}
-
-      {sessions === null ? (
-        <div className="text-gray-400 text-sm">Loading history…</div>
-      ) : sessions.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-8 text-center text-gray-400">
-          No lunch sessions recorded yet.
-        </div>
-      ) : (
+      {/* Done sessions */}
+      {done.length > 0 && (
         <div className="space-y-3">
-          {sessions.map((s) => (
-            <SessionCard key={s.id} session={s} places={places} me={me} onRefresh={load} />
+          <h2 className="text-base font-semibold text-gray-500 uppercase tracking-wide text-xs">History</h2>
+          {done.map((s) => (
+            <DoneCard key={s.id} session={s} me={me} onRefresh={load} />
           ))}
         </div>
       )}

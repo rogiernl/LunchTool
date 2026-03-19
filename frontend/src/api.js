@@ -38,4 +38,6 @@ export const api = {
   createRetroactive: (data) => req('POST', '/sessions/retroactive', data),
   addOrderToSession: (sid, item_description, amount) => req('POST', `/sessions/${sid}/orders`, { item_description, amount: amount || null }),
   markPaidInSession: (sid, oid) => req('PUT', `/sessions/${sid}/orders/${oid}/paid`, {}),
+  setSessionPayment: (sid, payment_url) => req('PUT', `/sessions/${sid}/payment`, { payment_url }),
+  takeSessionHost: (sid) => req('POST', `/sessions/${sid}/host`, {}),
 }

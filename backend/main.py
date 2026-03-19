@@ -493,6 +493,7 @@ def s_session(s, db):
         "selected_place": s_place(s.selected_place),
         "pickup_location": s.pickup_location,
         "pickup_time": s.pickup_time,
+        "payment_url": s.payment_url,
         "votes": [s_vote(v) for v in votes],
         "orders": [s_order(o) for o in orders],
     }
@@ -523,7 +524,7 @@ def create_retroactive(body: RetroactiveCreate, db: DbSession = Depends(get_db),
         raise HTTPException(404, "Place not found")
     s = LunchSession(
         date=body.date,
-        status="done",
+        status="settling",
         host_id=user.id,
         selected_place_id=body.place_id,
         pickup_location=body.pickup_location,
@@ -554,6 +555,31 @@ def add_order_to_session(sid: int, body: OrderCreate, db: DbSession = Depends(ge
     return s_order(order)
 
 
+class SessionPaymentBody(BaseModel):
+    payment_url: str
+
+
+@app.put("/sessions/{sid}/payment")
+def set_session_payment(sid: int, body: SessionPaymentBody, db: DbSession = Depends(get_db), user: User = Depends(get_current_user)):
+    s = db.query(LunchSession).filter(LunchSession.id == sid).first()
+    if not s:
+        raise HTTPException(404, "Session not found")
+    s.payment_url = body.payment_url.strip() or None
+    db.commit()
+    return {"ok": True}
+
+
+@app.post("/sessions/{sid}/host")
+def take_session_host(sid: int, db: DbSession = Depends(get_db), user: User = Depends(get_current_user)):
+    s = db.query(LunchSession).filter(LunchSession.id == sid).first()
+    if not s:
+        raise HTTPException(404, "Session not found")
+    s.host_id = user.id
+    db.commit()
+    db.refresh(s)
+    return s_session(s, db)
+
+
 @app.put("/sessions/{sid}/orders/{oid}/paid")
 def mark_paid_in_session(sid: int, oid: int, db: DbSession = Depends(get_db), user: User = Depends(get_current_user)):
     order = db.query(SessionOrder).filter(
@@ -565,4 +591,11 @@ def mark_paid_in_session(sid: int, oid: int, db: DbSession = Depends(get_db), us
         raise HTTPException(404, "Order not found")
     order.is_paid = True
     db.commit()
+    # Auto-close settling session when all orders are paid
+    s = db.query(LunchSession).filter(LunchSession.id == sid).first()
+    if s and s.status == "settling":
+        all_orders = db.query(SessionOrder).filter(SessionOrder.session_id == sid).all()
+        if all_orders and all(o.is_paid for o in all_orders):
+            s.status = "done"
+            db.commit()
     return {"ok": True}
