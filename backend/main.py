@@ -224,6 +224,8 @@ class PlaceCreate(BaseModel):
     address: Optional[str] = None
     google_rating: Optional[float] = None
     has_order_ahead: bool = False
+    lat: Optional[float] = None
+    lng: Optional[float] = None
 
 
 class VoteCreate(BaseModel):
@@ -382,38 +384,41 @@ def list_places(db: DbSession = Depends(get_db), _: User = Depends(get_current_u
 
 
 async def _enrich_geo(p: LunchPlace):
-    """Geocode address and fetch walking time from office. Silently skips on error."""
+    """Geocode address (if no manual coords) and fetch walking time. Silently skips on error."""
     api_key = os.getenv("GOOGLE_MAPS_API_KEY")
     if not api_key or not p.address:
         return
     try:
         async with httpx.AsyncClient(timeout=5) as client:
-            geo, dm = await asyncio.gather(
-                client.get(
+            # Only geocode when coordinates haven't been manually set
+            if p.lat is None or p.lng is None:
+                geo = await client.get(
                     "https://maps.googleapis.com/maps/api/geocode/json",
                     params={"address": p.address, "key": api_key},
-                ),
-                client.get(
-                    "https://maps.googleapis.com/maps/api/distancematrix/json",
-                    params={
-                        "origins": OFFICE_ADDRESS,
-                        "destinations": p.address,
-                        "mode": "walking",
-                        "key": api_key,
-                    },
-                ),
+                )
+                geo_data = geo.json()
+                if geo_data.get("status") == "OK" and geo_data.get("results"):
+                    loc = geo_data["results"][0]["geometry"]["location"]
+                    p.lat = loc["lat"]
+                    p.lng = loc["lng"]
+
+            # Always recalculate walking distance from office (use coords if available, else address)
+            destination = f"{p.lat},{p.lng}" if p.lat and p.lng else p.address
+            dm = await client.get(
+                "https://maps.googleapis.com/maps/api/distancematrix/json",
+                params={
+                    "origins": OFFICE_ADDRESS,
+                    "destinations": destination,
+                    "mode": "walking",
+                    "key": api_key,
+                },
             )
-        geo_data = geo.json()
-        if geo_data.get("status") == "OK" and geo_data.get("results"):
-            loc = geo_data["results"][0]["geometry"]["location"]
-            p.lat = loc["lat"]
-            p.lng = loc["lng"]
-        dm_data = dm.json()
-        rows = dm_data.get("rows", [])
-        if rows and rows[0].get("elements"):
-            el = rows[0]["elements"][0]
-            if el.get("status") == "OK":
-                p.walking_minutes = round(el["duration"]["value"] / 60)
+            dm_data = dm.json()
+            rows = dm_data.get("rows", [])
+            if rows and rows[0].get("elements"):
+                el = rows[0]["elements"][0]
+                if el.get("status") == "OK":
+                    p.walking_minutes = round(el["duration"]["value"] / 60)
     except Exception:
         pass
 

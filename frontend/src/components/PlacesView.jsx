@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { api } from '../api'
 import MapView from './MapView'
+import CoordPicker from './CoordPicker'
 
 function displayName(user) {
   return user.friendly_name || user.email
@@ -116,12 +117,15 @@ function BusinessSearch({ onSelect }) {
   )
 }
 
-function PlaceForm({ initial, onSave, onCancel, hasGoogleMaps }) {
+function PlaceForm({ initial, onSave, onCancel, hasGoogleMaps, apiKey }) {
   const [name, setName] = useState(initial?.name || '')
   const [description, setDescription] = useState(initial?.description || '')
   const [address, setAddress] = useState(initial?.address || '')
   const [googleRating, setGoogleRating] = useState(initial?.google_rating ?? null)
   const [hasOrderAhead, setHasOrderAhead] = useState(initial?.has_order_ahead || false)
+  const [lat, setLat] = useState(initial?.lat ?? null)
+  const [lng, setLng] = useState(initial?.lng ?? null)
+  const [showPicker, setShowPicker] = useState(false)
   const [loading, setLoading] = useState(false)
   const [fetchingDetails, setFetchingDetails] = useState(false)
   const [error, setError] = useState(null)
@@ -133,6 +137,9 @@ function PlaceForm({ initial, onSave, onCancel, hasGoogleMaps }) {
       setName(details.name || nameHint || '')
       setAddress(details.address || '')
       if (details.rating != null) setGoogleRating(details.rating)
+      // Clear manual coords so backend geocodes the new address
+      setLat(null)
+      setLng(null)
     } catch (err) {
       console.error('Place details error:', err)
       setName((prev) => prev || nameHint)
@@ -153,6 +160,8 @@ function PlaceForm({ initial, onSave, onCancel, hasGoogleMaps }) {
         address: address.trim() || null,
         google_rating: googleRating,
         has_order_ahead: hasOrderAhead,
+        lat: lat ?? null,
+        lng: lng ?? null,
       })
     } catch (e) {
       setError(e.message)
@@ -224,6 +233,37 @@ function PlaceForm({ initial, onSave, onCancel, hasGoogleMaps }) {
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
         />
       </div>
+
+      {/* Location pin override */}
+      {hasGoogleMaps && (
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-sm font-medium text-gray-700">Pin location</label>
+            <button
+              type="button"
+              onClick={() => setShowPicker((v) => !v)}
+              className="text-xs font-medium text-orange-600 hover:text-orange-800"
+            >
+              {showPicker ? 'Hide map' : lat != null ? 'Edit on map' : 'Set on map'}
+            </button>
+          </div>
+          {lat != null && !showPicker && (
+            <p className="text-xs text-gray-500 font-mono">
+              {lat.toFixed(5)}, {lng.toFixed(5)}
+              <button type="button" onClick={() => { setLat(null); setLng(null) }} className="ml-2 text-red-400 hover:text-red-600">✕ clear</button>
+            </p>
+          )}
+          {showPicker && (
+            <CoordPicker
+              apiKey={apiKey}
+              lat={lat}
+              lng={lng}
+              onChange={(newLat, newLng) => { setLat(newLat); setLng(newLng) }}
+              onClose={() => setShowPicker(false)}
+            />
+          )}
+        </div>
+      )}
 
       <label className="flex items-center gap-2 cursor-pointer select-none">
         <input
@@ -326,6 +366,7 @@ export default function PlacesView({ places, me, onRefresh, config }) {
             onSave={handleAdd}
             onCancel={() => setShowAddForm(false)}
             hasGoogleMaps={!!googleMapsApiKey}
+            apiKey={googleMapsApiKey}
           />
         </div>
       )}
@@ -344,6 +385,7 @@ export default function PlacesView({ places, me, onRefresh, config }) {
                   onSave={(data) => handleEdit(place.id, data)}
                   onCancel={() => setEditingId(null)}
                   hasGoogleMaps={!!googleMapsApiKey}
+                  apiKey={googleMapsApiKey}
                 />
               ) : (
                 <div className="flex items-start justify-between gap-3">
