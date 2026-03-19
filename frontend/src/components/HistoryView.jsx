@@ -30,8 +30,8 @@ export function SettlingCard({ session, me, onRefresh }) {
 
   const myOrder = session.orders.find((o) => o.user.id === me.id)
   const isHost = session.host?.id === me.id
-  const total = session.orders.reduce((s, o) => s + (o.amount || 0), 0)
-  const unpaidTotal = session.orders.reduce((s, o) => s + (o.is_paid ? 0 : (o.amount || 0)), 0)
+  const paidSum = session.orders.reduce((s, o) => s + (o.is_paid ? (o.amount || 0) : 0), 0)
+  const remaining = session.total_amount != null ? Math.max(0, session.total_amount - paidSum) : null
 
   // Pre-fill my order if it exists
   useEffect(() => {
@@ -124,14 +124,17 @@ export function SettlingCard({ session, me, onRefresh }) {
             )}
           </div>
           <div className="shrink-0 text-right">
-            {unpaidTotal > 0 ? (
-              <div>
-                <p className="text-xs text-gray-400">Outstanding</p>
-                <p className="text-lg font-bold text-orange-600">€{unpaidTotal.toFixed(2)}</p>
-              </div>
-            ) : session.orders.length > 0 ? (
-              <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">All settled</span>
-            ) : null}
+            {session.total_amount != null && (
+              remaining > 0 ? (
+                <div>
+                  <p className="text-xs text-gray-400">Remaining</p>
+                  <p className="text-2xl font-bold text-orange-600">€{remaining.toFixed(2)}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">of €{session.total_amount.toFixed(2)}</p>
+                </div>
+              ) : (
+                <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">Settled ✓</span>
+              )
+            )}
           </div>
         </div>
 
@@ -258,10 +261,20 @@ export function SettlingCard({ session, me, onRefresh }) {
           </ul>
         )}
 
-        {total > 0 && (
-          <div className="flex justify-between text-sm font-semibold text-gray-800 pt-2 border-t border-gray-100 mb-4">
-            <span>Total</span>
-            <span>€{total.toFixed(2)}</span>
+        {session.total_amount != null && (
+          <div className="pt-2 border-t border-gray-100 mb-4 space-y-1">
+            <div className="flex justify-between text-sm text-gray-500">
+              <span>Paid</span>
+              <span>€{paidSum.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-sm font-semibold text-gray-800">
+              <span>Total bill</span>
+              <span>€{session.total_amount.toFixed(2)}</span>
+            </div>
+            <div className={`flex justify-between text-sm font-bold ${remaining > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+              <span>Remaining</span>
+              <span>€{remaining.toFixed(2)}</span>
+            </div>
           </div>
         )}
 
@@ -306,7 +319,6 @@ export function SettlingCard({ session, me, onRefresh }) {
 
 function DoneCard({ session, me, onRefresh }) {
   const [expanded, setExpanded] = useState(false)
-  const total = session.orders.reduce((s, o) => s + (o.amount || 0), 0)
 
   return (
     <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -324,7 +336,7 @@ function DoneCard({ session, me, onRefresh }) {
           )}
         </div>
         <div className="flex items-center gap-3 shrink-0 ml-2">
-          {total > 0 && <span className="text-sm text-gray-400">€{total.toFixed(2)}</span>}
+          {session.total_amount != null && <span className="text-sm text-gray-400">€{session.total_amount.toFixed(2)}</span>}
           {session.orders.length > 0 && (
             <span className="text-xs text-gray-400">{session.orders.length} order{session.orders.length !== 1 ? 's' : ''}</span>
           )}
@@ -382,6 +394,7 @@ function DoneCard({ session, me, onRefresh }) {
 function RetroactiveForm({ places, onCreated, onCancel }) {
   const [date, setDate] = useState('')
   const [placeId, setPlaceId] = useState('')
+  const [totalAmount, setTotalAmount] = useState('')
   const [pickupLocation, setPickupLocation] = useState('')
   const [pickupTime, setPickupTime] = useState('')
   const [loading, setLoading] = useState(false)
@@ -389,13 +402,14 @@ function RetroactiveForm({ places, onCreated, onCancel }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!date || !placeId) return
+    if (!date || !placeId || !totalAmount) return
     setLoading(true)
     setError(null)
     try {
       const session = await api.createRetroactive({
         date,
         place_id: parseInt(placeId),
+        total_amount: parseFloat(totalAmount),
         pickup_location: pickupLocation.trim() || null,
         pickup_time: pickupTime.trim() || null,
       })
@@ -441,6 +455,22 @@ function RetroactiveForm({ places, onCreated, onCancel }) {
             ))}
           </select>
         </div>
+        <div className="w-32">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Total bill *</label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">€</span>
+            <input
+              type="number"
+              step="0.01"
+              min="0.01"
+              value={totalAmount}
+              onChange={(e) => setTotalAmount(e.target.value)}
+              placeholder="0.00"
+              required
+              className="w-full border border-gray-300 rounded-lg pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+          </div>
+        </div>
       </div>
       <div className="flex gap-3">
         <div className="flex-1">
@@ -466,7 +496,7 @@ function RetroactiveForm({ places, onCreated, onCancel }) {
       <div className="flex gap-2 pt-1">
         <button
           type="submit"
-          disabled={loading || !date || !placeId}
+          disabled={loading || !date || !placeId || !totalAmount}
           className="flex-1 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 disabled:opacity-50"
         >
           {loading ? 'Saving…' : 'Record lunch'}

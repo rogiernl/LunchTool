@@ -47,6 +47,7 @@ class LunchSession(Base):
     host_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     selected_place_id = Column(Integer, ForeignKey("lunch_places.id"), nullable=True)
     vote_deadline = Column(DateTime, nullable=True)
+    total_amount = Column(Float, nullable=True)
     payment_url = Column(String, nullable=True)
     pickup_location = Column(String, nullable=True)
     pickup_time = Column(String, nullable=True)
@@ -91,6 +92,7 @@ def _add_column_if_missing(table, column, col_type):
 
 _add_column_if_missing("lunch_places", "address", "TEXT")
 _add_column_if_missing("lunch_sessions", "vote_deadline", "DATETIME")
+_add_column_if_missing("lunch_sessions", "total_amount", "REAL")
 _add_column_if_missing("lunch_places", "google_rating", "REAL")
 _add_column_if_missing("session_orders", "amount", "REAL")
 
@@ -494,6 +496,7 @@ def s_session(s, db):
         "pickup_location": s.pickup_location,
         "pickup_time": s.pickup_time,
         "payment_url": s.payment_url,
+        "total_amount": s.total_amount,
         "votes": [s_vote(v) for v in votes],
         "orders": [s_order(o) for o in orders],
     }
@@ -508,6 +511,7 @@ def list_sessions(db: DbSession = Depends(get_db), _: User = Depends(get_current
 class RetroactiveCreate(BaseModel):
     date: date
     place_id: int
+    total_amount: float
     pickup_location: Optional[str] = None
     pickup_time: Optional[str] = None
 
@@ -527,6 +531,7 @@ def create_retroactive(body: RetroactiveCreate, db: DbSession = Depends(get_db),
         status="settling",
         host_id=user.id,
         selected_place_id=body.place_id,
+        total_amount=body.total_amount,
         pickup_location=body.pickup_location,
         pickup_time=body.pickup_time,
     )
@@ -591,11 +596,12 @@ def mark_paid_in_session(sid: int, oid: int, db: DbSession = Depends(get_db), us
         raise HTTPException(404, "Order not found")
     order.is_paid = True
     db.commit()
-    # Auto-close settling session when all orders are paid
+    # Auto-close settling session when paid amounts cover the total
     s = db.query(LunchSession).filter(LunchSession.id == sid).first()
-    if s and s.status == "settling":
+    if s and s.status == "settling" and s.total_amount is not None:
         all_orders = db.query(SessionOrder).filter(SessionOrder.session_id == sid).all()
-        if all_orders and all(o.is_paid for o in all_orders):
+        paid_sum = sum(o.amount or 0 for o in all_orders if o.is_paid)
+        if paid_sum >= s.total_amount:
             s.status = "done"
             db.commit()
     return {"ok": True}
