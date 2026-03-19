@@ -10,26 +10,37 @@ function displayName(user) {
 // ─── Meal type icons ──────────────────────────────────────────────────────────
 
 function LunchIcon({ className = 'w-5 h-5' }) {
+  // Fork left, knife right
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 11l19-9-9 19-2-8-8-2z" />
+      <path d="M6 2v5M8 2v5M10 2v5" />
+      <path d="M6 7a2 2 0 004 0" />
+      <line x1="8" y1="9" x2="8" y2="22" />
+      <path d="M15 2c1.5 0 3 2 3 5v1h-3V2z" />
+      <line x1="15" y1="8" x2="15" y2="22" />
     </svg>
   )
 }
 
 function DinnerIcon({ className = 'w-5 h-5' }) {
+  // Wine glass
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 2a10 10 0 100 20A10 10 0 0012 2z" />
-      <path d="M12 6v6l4 2" />
+      <path d="M7 3h10l-2.5 7a4.5 4.5 0 01-5 0L7 3z" />
+      <path d="M12 10v9" />
+      <path d="M9 19h6" />
     </svg>
   )
 }
 
 function DrinksIcon({ className = 'w-5 h-5' }) {
+  // Cocktail / martini glass
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M8 22h8M12 11v11M3 3l4 8h10l4-8H3z" />
+      <path d="M4 3h16L12 13z" />
+      <line x1="12" y1="13" x2="12" y2="20" />
+      <line x1="9" y1="20" x2="15" y2="20" />
+      <line x1="17" y1="6" x2="19" y2="4" />
     </svg>
   )
 }
@@ -693,9 +704,9 @@ function RetroactiveForm({ places, onCreated, onCancel }) {
         </div>
       </div>
 
-      {/* Image */}
+      {/* Receipt */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Photo</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Receipt</label>
         <input
           type="file"
           accept="image/*"
