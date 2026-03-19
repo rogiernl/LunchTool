@@ -1,0 +1,31 @@
+services:
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    volumes:
+      - lunch_data:/data
+    environment:
+      - DATABASE_URL=sqlite:////data/lunchtool.db
+      # Set TZ to your local timezone so the 11am cutoff is correct
+      - TZ=Europe/Amsterdam
+      # DEV_EMAIL is only used when Cloudflare header is absent (local dev without CF tunnel)
+      # - DEV_EMAIL=dev@example.com
+    networks:
+      - mediationportal_default
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "3045:80"
+    depends_on:
+      - backend
+    networks:
+      - mediationportal_default
+
+volumes:
+  lunch_data:
+
+networks:
+  mediationportal_default:
+    external: true
