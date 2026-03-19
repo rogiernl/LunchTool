@@ -167,6 +167,9 @@ export default function VotingView({ session, places, me, onRefresh }) {
                           <span className="text-sm text-gray-500">{place.description}</span>
                         )}
                         <StarRating rating={place.google_rating} />
+                        {place.walking_minutes != null && (
+                          <span className="text-xs text-gray-500">🚶 {place.walking_minutes} min</span>
+                        )}
                       </div>
                       {place.address && (
                         <div className="text-xs text-gray-400">{place.address}</div>

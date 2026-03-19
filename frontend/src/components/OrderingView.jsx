@@ -84,6 +84,9 @@ export default function OrderingView({ session, me, onRefresh }) {
               <p className="text-sm text-gray-400 mt-0.5">{session.selected_place.address}</p>
             )}
             <StarRating rating={session.selected_place?.google_rating} />
+            {session.selected_place?.walking_minutes != null && (
+              <p className="text-sm text-gray-500 mt-1">🚶 {session.selected_place.walking_minutes} min walk from office</p>
+            )}
             {session.selected_place?.has_order_ahead && (
               <span className="inline-block mt-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
                 Order ahead required

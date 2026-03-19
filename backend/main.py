@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from datetime import datetime, date, time, timedelta
 from typing import Optional, List
 import os
+import asyncio
 import httpx
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:////data/lunchtool.db")
@@ -33,6 +34,9 @@ class LunchPlace(Base):
     address = Column(String, nullable=True)
     google_rating = Column(Float, nullable=True)
     has_order_ahead = Column(Boolean, default=False)
+    lat = Column(Float, nullable=True)
+    lng = Column(Float, nullable=True)
+    walking_minutes = Column(Integer, nullable=True)
     added_by_id = Column(Integer, ForeignKey("users.id"))
     created_at = Column(DateTime, default=datetime.utcnow)
     added_by = relationship("User")
@@ -91,6 +95,9 @@ def _add_column_if_missing(table, column, col_type):
             conn.commit()
 
 _add_column_if_missing("lunch_places", "address", "TEXT")
+_add_column_if_missing("lunch_places", "lat", "REAL")
+_add_column_if_missing("lunch_places", "lng", "REAL")
+_add_column_if_missing("lunch_places", "walking_minutes", "INTEGER")
 _add_column_if_missing("lunch_sessions", "vote_deadline", "DATETIME")
 _add_column_if_missing("lunch_sessions", "total_amount", "REAL")
 _add_column_if_missing("lunch_places", "google_rating", "REAL")
@@ -98,6 +105,10 @@ _add_column_if_missing("session_orders", "amount", "REAL")
 
 
 # ─── App & middleware ─────────────────────────────────────────────────────────
+
+OFFICE_ADDRESS = "Boven Vredenburgpassage 128, Utrecht, Netherlands"
+OFFICE_LAT = 52.0919
+OFFICE_LNG = 5.1183
 
 app = FastAPI(title="LunchTool")
 
@@ -175,6 +186,9 @@ def s_place(p):
         "address": p.address,
         "google_rating": p.google_rating,
         "has_order_ahead": p.has_order_ahead,
+        "lat": p.lat,
+        "lng": p.lng,
+        "walking_minutes": p.walking_minutes,
         "added_by": s_user(p.added_by),
     }
 
@@ -239,7 +253,12 @@ class OrderCreate(BaseModel):
 
 @app.get("/config")
 def get_config():
-    return {"google_maps_api_key": os.getenv("GOOGLE_MAPS_API_KEY", "")}
+    return {
+        "google_maps_api_key": os.getenv("GOOGLE_MAPS_API_KEY", ""),
+        "office_lat": OFFICE_LAT,
+        "office_lng": OFFICE_LNG,
+        "office_name": "VodafoneZiggo Utrecht",
+    }
 
 
 @app.get("/places-autocomplete")
@@ -322,22 +341,65 @@ def list_places(db: DbSession = Depends(get_db), _: User = Depends(get_current_u
     return [s_place(p) for p in places]
 
 
+async def _enrich_geo(p: LunchPlace):
+    """Geocode address and fetch walking time from office. Silently skips on error."""
+    api_key = os.getenv("GOOGLE_MAPS_API_KEY")
+    if not api_key or not p.address:
+        return
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            geo, dm = await asyncio.gather(
+                client.get(
+                    "https://maps.googleapis.com/maps/api/geocode/json",
+                    params={"address": p.address, "key": api_key},
+                ),
+                client.get(
+                    "https://maps.googleapis.com/maps/api/distancematrix/json",
+                    params={
+                        "origins": OFFICE_ADDRESS,
+                        "destinations": p.address,
+                        "mode": "walking",
+                        "key": api_key,
+                    },
+                ),
+            )
+        geo_data = geo.json()
+        if geo_data.get("status") == "OK" and geo_data.get("results"):
+            loc = geo_data["results"][0]["geometry"]["location"]
+            p.lat = loc["lat"]
+            p.lng = loc["lng"]
+        dm_data = dm.json()
+        rows = dm_data.get("rows", [])
+        if rows and rows[0].get("elements"):
+            el = rows[0]["elements"][0]
+            if el.get("status") == "OK":
+                p.walking_minutes = round(el["duration"]["value"] / 60)
+    except Exception:
+        pass
+
+
 @app.post("/places")
-def create_place(body: PlaceCreate, db: DbSession = Depends(get_db), user: User = Depends(get_current_user)):
+async def create_place(body: PlaceCreate, db: DbSession = Depends(get_db), user: User = Depends(get_current_user)):
     p = LunchPlace(**body.model_dump(), added_by_id=user.id)
     db.add(p)
+    db.commit()
+    db.refresh(p)
+    await _enrich_geo(p)
     db.commit()
     db.refresh(p)
     return s_place(p)
 
 
 @app.put("/places/{pid}")
-def update_place(pid: int, body: PlaceCreate, db: DbSession = Depends(get_db), user: User = Depends(get_current_user)):
+async def update_place(pid: int, body: PlaceCreate, db: DbSession = Depends(get_db), user: User = Depends(get_current_user)):
     p = db.query(LunchPlace).filter(LunchPlace.id == pid).first()
     if not p:
         raise HTTPException(404, "Not found")
     for k, v in body.model_dump().items():
         setattr(p, k, v)
+    db.commit()
+    db.refresh(p)
+    await _enrich_geo(p)
     db.commit()
     db.refresh(p)
     return s_place(p)

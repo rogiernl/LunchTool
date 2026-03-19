@@ -10,7 +10,7 @@ export default function App() {
   const [session, setSession] = useState(null)
   const [places, setPlaces] = useState([])
   const [settlingSessions, setSettlingSessions] = useState([])
-  const [googleMapsApiKey, setGoogleMapsApiKey] = useState('')
+  const [config, setConfig] = useState({})
   const [tab, setTab] = useState('today')
   const [error, setError] = useState(null)
 
@@ -27,7 +27,7 @@ export default function App() {
       setSession(sessionData)
       setPlaces(placesData)
       setSettlingSessions(allSessions.filter((s) => s.status === 'settling'))
-      if (config.google_maps_api_key) setGoogleMapsApiKey(config.google_maps_api_key)
+      setConfig(config)
       setError(null)
     } catch (e) {
       setError(e.message)
@@ -113,7 +113,7 @@ export default function App() {
           </>
         )}
         {tab === 'places' && (
-          <PlacesView places={places} me={me} onRefresh={loadData} googleMapsApiKey={googleMapsApiKey} />
+          <PlacesView places={places} me={me} onRefresh={loadData} config={config} />
         )}
         {tab === 'history' && (
           <HistoryView places={places} me={me} />

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { api } from '../api'
+import MapView from './MapView'
 
 function displayName(user) {
   return user.friendly_name || user.email
@@ -254,10 +255,12 @@ function PlaceForm({ initial, onSave, onCancel, hasGoogleMaps }) {
   )
 }
 
-export default function PlacesView({ places, me, onRefresh, googleMapsApiKey }) {
+export default function PlacesView({ places, me, onRefresh, config }) {
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
+  const [showMap, setShowMap] = useState(false)
   const [error, setError] = useState(null)
+  const googleMapsApiKey = config?.google_maps_api_key
 
   const handleAdd = async (data) => {
     await api.createPlace(data)
@@ -286,15 +289,31 @@ export default function PlacesView({ places, me, onRefresh, googleMapsApiKey }) 
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold text-gray-900">Lunch Places</h2>
-        {!showAddForm && (
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="py-2 px-4 bg-orange-500 text-white text-sm rounded-lg font-medium hover:bg-orange-600 transition-colors"
-          >
-            + Add place
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {googleMapsApiKey && places.some((p) => p.lat) && (
+            <button
+              onClick={() => setShowMap((v) => !v)}
+              className={`py-2 px-4 text-sm rounded-lg font-medium transition-colors border ${
+                showMap
+                  ? 'bg-blue-50 border-blue-200 text-blue-700'
+                  : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {showMap ? 'Hide map' : 'Show map'}
+            </button>
+          )}
+          {!showAddForm && (
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="py-2 px-4 bg-orange-500 text-white text-sm rounded-lg font-medium hover:bg-orange-600 transition-colors"
+            >
+              + Add place
+            </button>
+          )}
+        </div>
       </div>
+
+      {showMap && <MapView places={places} config={config} />}
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">{error}</div>
@@ -337,6 +356,9 @@ export default function PlacesView({ places, me, onRefresh, googleMapsApiKey }) 
                         </span>
                       )}
                       <StarRating rating={place.google_rating} />
+                      {place.walking_minutes != null && (
+                        <span className="text-xs text-gray-500">🚶 {place.walking_minutes} min</span>
+                      )}
                     </div>
                     {place.description && (
                       <p className="text-sm text-gray-500 mt-0.5">{place.description}</p>
