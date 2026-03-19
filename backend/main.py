@@ -308,17 +308,17 @@ async def get_weather(_: User = Depends(get_current_user)):
         lw = data.get("liveweer", [{}])[0]
         if lw.get("fout"):
             raise HTTPException(502, lw["fout"])
-        # Find the 12:00 hourly forecast (represents the 12–13u lunch hour)
-        h12 = None
+        # Use 13:00 forecast for lunch — further from now so more stable/reliable
+        h13 = None
         for h in data.get("uur_verw", []):
-            if "12:00" in h.get("uur", ""):
-                h12 = h
+            if "13:00" in h.get("uur", ""):
+                h13 = h
                 break
         lunch = {
-            "temp": h12["temp"],
-            "image": h12["image"],
-            "rain_mm": round(float(h12.get("neersl") or 0), 1),
-        } if h12 else None
+            "temp": h13["temp"],
+            "image": h13["image"],
+            "rain_mm": round(float(h13.get("neersl") or 0), 1),
+        } if h13 else None
         return {
             "temp": lw.get("temp"),
             "description": lw.get("samenv"),
