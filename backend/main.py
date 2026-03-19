@@ -48,7 +48,7 @@ class LunchPlace(Base):
 class LunchSession(Base):
     __tablename__ = "lunch_sessions"
     id = Column(Integer, primary_key=True)
-    date = Column(Date, unique=True, nullable=False)
+    date = Column(Date, nullable=False)
     # voting | ordering | pickup | done
     status = Column(String, default="voting")
     host_id = Column(Integer, ForeignKey("users.id"), nullable=True)
@@ -125,6 +125,43 @@ _add_column_if_missing("lunch_sessions", "image_path", "TEXT")
 _add_column_if_missing("lunch_sessions", "gratuity", "REAL")
 _add_column_if_missing("lunch_sessions", "attendee_count", "INTEGER")
 _add_column_if_missing("lunch_sessions", "place_name", "TEXT")
+
+def _remove_lunch_sessions_date_unique():
+    with engine.connect() as conn:
+        indexes = conn.execute(text("PRAGMA index_list(lunch_sessions)")).fetchall()
+        for idx in indexes:
+            if idx[2]:  # unique flag
+                cols = conn.execute(text(f"PRAGMA index_info({idx[1]})")).fetchall()
+                if any(c[2] == 'date' for c in cols):
+                    break
+        else:
+            return  # no unique index on date found
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS lunch_sessions_new (
+                id INTEGER PRIMARY KEY,
+                date DATE NOT NULL,
+                status VARCHAR DEFAULT 'voting',
+                host_id INTEGER REFERENCES users(id),
+                selected_place_id INTEGER REFERENCES lunch_places(id),
+                vote_deadline DATETIME,
+                total_amount REAL,
+                gratuity REAL,
+                attendee_count INTEGER,
+                payment_url VARCHAR,
+                pickup_location VARCHAR,
+                pickup_time VARCHAR,
+                meal_type VARCHAR,
+                image_path VARCHAR,
+                place_name VARCHAR,
+                created_at DATETIME
+            )
+        """))
+        conn.execute(text("INSERT OR IGNORE INTO lunch_sessions_new SELECT id,date,status,host_id,selected_place_id,vote_deadline,total_amount,gratuity,attendee_count,payment_url,pickup_location,pickup_time,meal_type,image_path,place_name,created_at FROM lunch_sessions"))
+        conn.execute(text("DROP TABLE lunch_sessions"))
+        conn.execute(text("ALTER TABLE lunch_sessions_new RENAME TO lunch_sessions"))
+        conn.commit()
+
+_remove_lunch_sessions_date_unique()
 
 
 # ─── App & middleware ─────────────────────────────────────────────────────────
@@ -701,9 +738,6 @@ def create_retroactive(body: RetroactiveCreate, db: DbSession = Depends(get_db),
         raise HTTPException(400, "Provide either a place_id or a place_name")
     if body.date > date.today():
         raise HTTPException(400, "Cannot create a session for a future date")
-    existing = db.query(LunchSession).filter(LunchSession.date == body.date).first()
-    if existing:
-        raise HTTPException(400, "A session already exists for this date")
     place_id = None
     if body.place_id:
         place = db.query(LunchPlace).filter(LunchPlace.id == body.place_id).first()

@@ -545,13 +545,19 @@ function RetroactiveForm({ places, onCreated, onCancel }) {
   const [totalAmount, setTotalAmount] = useState('')
   const [gratuity, setGratuity] = useState('')
   const [attendeeCount, setAttendeeCount] = useState('')
+  const [paymentUrl, setPaymentUrl] = useState('')
   const [imageFile, setImageFile] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [shake, setShake] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!date || (!placeId && !placeName.trim()) || !totalAmount) return
+    if (!date || (!placeId && !placeName.trim()) || !totalAmount) {
+      setShake(true)
+      setTimeout(() => setShake(false), 600)
+      return
+    }
     setLoading(true)
     setError(null)
     try {
@@ -564,6 +570,9 @@ function RetroactiveForm({ places, onCreated, onCancel }) {
         gratuity: gratuity ? parseFloat(gratuity) : null,
         attendee_count: attendeeCount ? parseInt(attendeeCount) : null,
       })
+      if (paymentUrl.trim()) {
+        await api.setSessionPayment(session.id, paymentUrl.trim()).catch(() => {})
+      }
       if (imageFile) {
         await api.uploadSessionImage(session.id, imageFile).catch(() => {})
       }
@@ -617,7 +626,7 @@ function RetroactiveForm({ places, onCreated, onCancel }) {
             max={today}
             onChange={(e) => setDate(e.target.value)}
             required
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+            className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition-colors ${shake && !date ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
           />
         </div>
         <div className="flex-1">
@@ -633,7 +642,7 @@ function RetroactiveForm({ places, onCreated, onCancel }) {
             }}
             placeholder="Select or type a name…"
             required
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+            className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition-colors ${shake && !placeId && !placeName.trim() ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
           />
           <datalist id="places-list">
             {places.map((p) => <option key={p.id} value={p.name} />)}
@@ -652,7 +661,7 @@ function RetroactiveForm({ places, onCreated, onCancel }) {
               value={totalAmount}
               onChange={(e) => setTotalAmount(e.target.value)}
               placeholder="0.00" required
-              className="w-full border border-gray-300 rounded-lg pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+              className={`w-full border rounded-lg pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition-colors ${shake && !totalAmount ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
             />
           </div>
         </div>
@@ -686,6 +695,18 @@ function RetroactiveForm({ places, onCreated, onCancel }) {
         )}
       </div>
 
+      {/* Payment URL */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Payment link</label>
+        <input
+          type="url"
+          value={paymentUrl}
+          onChange={(e) => setPaymentUrl(e.target.value)}
+          placeholder="https://tikkie.me/pay/…"
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+        />
+      </div>
+
       {/* Receipt */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Receipt</label>
@@ -707,7 +728,7 @@ function RetroactiveForm({ places, onCreated, onCancel }) {
       <div className="flex gap-2 pt-1">
         <button
           type="submit"
-          disabled={loading || !date || (!placeId && !placeName.trim()) || !totalAmount}
+          disabled={loading}
           className="flex-1 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 disabled:opacity-50"
         >
           {loading ? 'Saving…' : 'Record'}
