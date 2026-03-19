@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react'
-import { Loader } from '@googlemaps/js-api-loader'
 import { api } from '../api'
 
 function displayName(user) {
@@ -21,63 +20,125 @@ export function StarRating({ rating }) {
   )
 }
 
-// Singleton loader — created once when API key is known
-let _loader = null
-function getLoader(apiKey) {
-  if (!_loader && apiKey) {
-    _loader = new Loader({ apiKey, version: 'weekly' })
+function BusinessSearch({ onSelect }) {
+  const [query, setQuery] = useState('')
+  const [suggestions, setSuggestions] = useState([])
+  const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const timerRef = useRef(null)
+  const wrapperRef = useRef(null)
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const handleChange = (e) => {
+    const val = e.target.value
+    setQuery(val)
+    clearTimeout(timerRef.current)
+    if (val.length < 2) { setSuggestions([]); setOpen(false); return }
+    timerRef.current = setTimeout(async () => {
+      setLoading(true)
+      try {
+        const results = await api.autocomplete(val)
+        setSuggestions(results)
+        setOpen(results.length > 0)
+      } catch (e) {
+        console.error('Autocomplete error:', e)
+      } finally {
+        setLoading(false)
+      }
+    }, 300)
   }
-  return _loader
+
+  const handleSelect = (s) => {
+    setQuery(s.main_text)
+    setOpen(false)
+    setSuggestions([])
+    onSelect(s.place_id, s.main_text)
+  }
+
+  return (
+    <div ref={wrapperRef} className="relative">
+      <div className="relative">
+        <svg
+          className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-orange-400 pointer-events-none"
+          fill="none" stroke="currentColor" viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input
+          type="text"
+          value={query}
+          onChange={handleChange}
+          onFocus={() => suggestions.length > 0 && setOpen(true)}
+          placeholder="Type a restaurant or café name…"
+          className="w-full border-2 border-orange-300 rounded-lg pl-9 pr-9 py-2 text-sm bg-orange-50 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:bg-white placeholder-orange-300"
+          autoFocus
+        />
+        {loading && (
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-orange-400 border-t-transparent rounded-full animate-spin" />
+        )}
+        {query && !loading && (
+          <button
+            type="button"
+            onClick={() => { setQuery(''); setSuggestions([]); setOpen(false) }}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+          >
+            ×
+          </button>
+        )}
+      </div>
+
+      {open && suggestions.length > 0 && (
+        <ul className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-64 overflow-y-auto">
+          {suggestions.map((s) => (
+            <li
+              key={s.place_id}
+              onMouseDown={() => handleSelect(s)}
+              className="px-4 py-3 cursor-pointer hover:bg-orange-50 border-b border-gray-100 last:border-0"
+            >
+              <div className="text-sm font-semibold text-gray-900">{s.main_text}</div>
+              {s.secondary_text && (
+                <div className="text-xs text-gray-500 mt-0.5">{s.secondary_text}</div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
 }
 
-function PlaceForm({ initial, onSave, onCancel, googleMapsApiKey }) {
+function PlaceForm({ initial, onSave, onCancel, hasGoogleMaps }) {
   const [name, setName] = useState(initial?.name || '')
   const [description, setDescription] = useState(initial?.description || '')
   const [address, setAddress] = useState(initial?.address || '')
   const [googleRating, setGoogleRating] = useState(initial?.google_rating ?? null)
   const [hasOrderAhead, setHasOrderAhead] = useState(initial?.has_order_ahead || false)
   const [loading, setLoading] = useState(false)
+  const [fetchingDetails, setFetchingDetails] = useState(false)
   const [error, setError] = useState(null)
-  const containerRef = useRef(null)
 
-  useEffect(() => {
-    const loader = getLoader(googleMapsApiKey)
-    if (!loader || !containerRef.current) return
-
-    let mounted = true
-    let el = null
-
-    loader.importLibrary('places').then(({ PlaceAutocompleteElement }) => {
-      if (!mounted || !containerRef.current) return
-
-      el = new PlaceAutocompleteElement({ types: ['establishment'] })
-      el.style.cssText = 'width:100%;font-size:0.875rem;'
-      containerRef.current.appendChild(el)
-
-      el.addEventListener('gmp-placeselect', async (event) => {
-        const { place } = event
-        // place.id is always available; fetch full details server-side
-        try {
-          const details = await api.getPlaceDetails(place.id)
-          if (details.name) setName((prev) => prev || details.name)
-          if (details.address) setAddress(details.address)
-          if (details.rating != null) setGoogleRating(details.rating)
-        } catch (err) {
-          // Fallback: use displayName from the autocomplete element itself
-          console.warn('Place details error:', err)
-          if (place.displayName) setName((prev) => prev || place.displayName)
-        }
-        document.getElementById('place-name-input')?.focus()
-      })
-    })
-
-    return () => {
-      mounted = false
-      if (el && containerRef.current?.contains(el)) {
-        containerRef.current.removeChild(el)
-      }
+  const handleBusinessSelect = async (placeId, nameHint) => {
+    setFetchingDetails(true)
+    try {
+      const details = await api.getPlaceDetails(placeId)
+      setName(details.name || nameHint || '')
+      setAddress(details.address || '')
+      if (details.rating != null) setGoogleRating(details.rating)
+    } catch (err) {
+      console.error('Place details error:', err)
+      setName((prev) => prev || nameHint)
+    } finally {
+      setFetchingDetails(false)
     }
-  }, [googleMapsApiKey])
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -105,11 +166,18 @@ function PlaceForm({ initial, onSave, onCancel, googleMapsApiKey }) {
         <div className="bg-red-50 border border-red-200 rounded p-2 text-red-700 text-sm">{error}</div>
       )}
 
-      {googleMapsApiKey && (
+      {hasGoogleMaps && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Search for a business</label>
-          <div ref={containerRef} className="w-full" />
-          <p className="text-xs text-gray-400 mt-1">Select a result to auto-fill name, address and rating</p>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Search for a business
+          </label>
+          <BusinessSearch onSelect={handleBusinessSelect} />
+          {fetchingDetails && (
+            <p className="text-xs text-orange-500 mt-1">Fetching details…</p>
+          )}
+          <p className="text-xs text-gray-400 mt-1">
+            Selecting a result fills in name, address and Google rating below
+          </p>
         </div>
       )}
 
@@ -123,7 +191,7 @@ function PlaceForm({ initial, onSave, onCancel, googleMapsApiKey }) {
           placeholder="e.g. De Lunchroom"
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
           required
-          autoFocus={!googleMapsApiKey && !initial}
+          autoFocus={!hasGoogleMaps && !initial}
         />
       </div>
 
@@ -133,13 +201,13 @@ function PlaceForm({ initial, onSave, onCancel, googleMapsApiKey }) {
           type="text"
           value={address}
           onChange={(e) => setAddress(e.target.value)}
-          placeholder="e.g. Kalverstraat 12, Amsterdam"
+          placeholder="e.g. Oudegracht 12, Utrecht"
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
         />
       </div>
 
       {googleRating != null && (
-        <div className="flex items-center gap-2 text-sm text-gray-600">
+        <div className="flex items-center gap-2 text-sm text-gray-600 bg-amber-50 rounded-lg px-3 py-2">
           <span>Google rating:</span>
           <StarRating rating={googleRating} />
         </div>
@@ -169,10 +237,10 @@ function PlaceForm({ initial, onSave, onCancel, googleMapsApiKey }) {
       <div className="flex gap-2 pt-1">
         <button
           type="submit"
-          disabled={loading || !name.trim()}
+          disabled={loading || fetchingDetails || !name.trim()}
           className="flex-1 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 disabled:opacity-50"
         >
-          {loading ? 'Saving...' : initial ? 'Save changes' : 'Add place'}
+          {loading ? 'Saving…' : initial ? 'Save changes' : 'Add place'}
         </button>
         <button
           type="button"
@@ -229,9 +297,7 @@ export default function PlacesView({ places, me, onRefresh, googleMapsApiKey }) 
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">
-          {error}
-        </div>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">{error}</div>
       )}
 
       {showAddForm && (
@@ -240,7 +306,7 @@ export default function PlacesView({ places, me, onRefresh, googleMapsApiKey }) 
           <PlaceForm
             onSave={handleAdd}
             onCancel={() => setShowAddForm(false)}
-            googleMapsApiKey={googleMapsApiKey}
+            hasGoogleMaps={!!googleMapsApiKey}
           />
         </div>
       )}
@@ -258,7 +324,7 @@ export default function PlacesView({ places, me, onRefresh, googleMapsApiKey }) 
                   initial={place}
                   onSave={(data) => handleEdit(place.id, data)}
                   onCancel={() => setEditingId(null)}
-                  googleMapsApiKey={googleMapsApiKey}
+                  hasGoogleMaps={!!googleMapsApiKey}
                 />
               ) : (
                 <div className="flex items-start justify-between gap-3">

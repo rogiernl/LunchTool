@@ -231,6 +231,42 @@ def get_config():
     return {"google_maps_api_key": os.getenv("GOOGLE_MAPS_API_KEY", "")}
 
 
+@app.get("/places-autocomplete")
+async def places_autocomplete(q: str, _: User = Depends(get_current_user)):
+    api_key = os.getenv("GOOGLE_MAPS_API_KEY")
+    if not api_key or len(q.strip()) < 2:
+        return []
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            "https://places.googleapis.com/v1/places:autocomplete",
+            headers={"X-Goog-Api-Key": api_key, "Content-Type": "application/json"},
+            json={
+                "input": q,
+                "includedPrimaryTypes": ["restaurant", "food", "cafe", "bar", "meal_takeaway", "meal_delivery"],
+                "locationBias": {
+                    "circle": {
+                        "center": {"latitude": 52.0907, "longitude": 5.1214},
+                        "radius": 8000.0,
+                    }
+                },
+            },
+        )
+    if not resp.is_success:
+        return []
+    suggestions = []
+    for s in resp.json().get("suggestions", []):
+        p = s.get("placePrediction", {})
+        if not p:
+            continue
+        fmt = p.get("structuredFormat", {})
+        suggestions.append({
+            "place_id": p.get("placeId", ""),
+            "main_text": fmt.get("mainText", {}).get("text", p.get("text", {}).get("text", "")),
+            "secondary_text": fmt.get("secondaryText", {}).get("text", ""),
+        })
+    return suggestions
+
+
 @app.get("/place-details/{place_id}")
 async def get_place_details(place_id: str, _: User = Depends(get_current_user)):
     api_key = os.getenv("GOOGLE_MAPS_API_KEY")
