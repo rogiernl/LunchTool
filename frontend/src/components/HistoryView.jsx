@@ -551,7 +551,7 @@ function RetroactiveForm({ places, onCreated, onCancel }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!date || !placeId || !totalAmount) return
+    if (!date || (!placeId && !placeName.trim()) || !totalAmount) return
     setLoading(true)
     setError(null)
     try {

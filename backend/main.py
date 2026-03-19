@@ -735,7 +735,7 @@ async def upload_session_image(sid: int, file: UploadFile = File(...), db: DbSes
     if not s:
         raise HTTPException(404, "Session not found")
     ext = pathlib.Path(file.filename).suffix.lower()
-    if ext not in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
+    if ext not in {".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic", ".heif"}:
         raise HTTPException(400, "Unsupported image type")
     filename = f"session_{sid}{ext}"
     dest = IMAGES_DIR / filename
