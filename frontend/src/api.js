@@ -40,4 +40,6 @@ export const api = {
   markPaidInSession: (sid, oid) => req('PUT', `/sessions/${sid}/orders/${oid}/paid`, {}),
   setSessionPayment: (sid, payment_url) => req('PUT', `/sessions/${sid}/payment`, { payment_url }),
   takeSessionHost: (sid) => req('POST', `/sessions/${sid}/host`, {}),
+  setSessionTotal: (sid, total_amount) => req('PUT', `/sessions/${sid}/total`, { total_amount }),
+  settleSession: (sid) => req('PUT', `/sessions/${sid}/settle`, {}),
 }

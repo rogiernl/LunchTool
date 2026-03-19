@@ -560,6 +560,34 @@ def add_order_to_session(sid: int, body: OrderCreate, db: DbSession = Depends(ge
     return s_order(order)
 
 
+class SessionTotalBody(BaseModel):
+    total_amount: float
+
+
+@app.put("/sessions/{sid}/total")
+def set_session_total(sid: int, body: SessionTotalBody, db: DbSession = Depends(get_db), user: User = Depends(get_current_user)):
+    s = db.query(LunchSession).filter(LunchSession.id == sid).first()
+    if not s:
+        raise HTTPException(404, "Session not found")
+    if s.host_id != user.id:
+        raise HTTPException(403, "Only the host can edit the total")
+    s.total_amount = body.total_amount
+    db.commit()
+    return {"ok": True}
+
+
+@app.put("/sessions/{sid}/settle")
+def settle_session(sid: int, db: DbSession = Depends(get_db), user: User = Depends(get_current_user)):
+    s = db.query(LunchSession).filter(LunchSession.id == sid).first()
+    if not s:
+        raise HTTPException(404, "Session not found")
+    if s.host_id != user.id:
+        raise HTTPException(403, "Only the host can settle")
+    s.status = "done"
+    db.commit()
+    return {"ok": True}
+
+
 class SessionPaymentBody(BaseModel):
     payment_url: str
 
