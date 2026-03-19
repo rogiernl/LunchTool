@@ -478,3 +478,91 @@ def mark_paid(oid: int, db: DbSession = Depends(get_db), user: User = Depends(ge
     order.is_paid = True
     db.commit()
     return {"ok": True}
+
+
+# ─── History / retroactive sessions ──────────────────────────────────────────
+
+def s_session(s, db):
+    votes = db.query(SessionVote).filter(SessionVote.session_id == s.id).all()
+    orders = db.query(SessionOrder).filter(SessionOrder.session_id == s.id).all()
+    return {
+        "id": s.id,
+        "date": s.date.isoformat(),
+        "status": s.status,
+        "host": s_user(s.host),
+        "selected_place": s_place(s.selected_place),
+        "pickup_location": s.pickup_location,
+        "pickup_time": s.pickup_time,
+        "votes": [s_vote(v) for v in votes],
+        "orders": [s_order(o) for o in orders],
+    }
+
+
+@app.get("/sessions")
+def list_sessions(db: DbSession = Depends(get_db), _: User = Depends(get_current_user)):
+    sessions = db.query(LunchSession).order_by(LunchSession.date.desc()).limit(60).all()
+    return [s_session(s, db) for s in sessions]
+
+
+class RetroactiveCreate(BaseModel):
+    date: date
+    place_id: int
+    pickup_location: Optional[str] = None
+    pickup_time: Optional[str] = None
+
+
+@app.post("/sessions/retroactive")
+def create_retroactive(body: RetroactiveCreate, db: DbSession = Depends(get_db), user: User = Depends(get_current_user)):
+    if body.date > date.today():
+        raise HTTPException(400, "Cannot create a session for a future date")
+    existing = db.query(LunchSession).filter(LunchSession.date == body.date).first()
+    if existing:
+        raise HTTPException(400, "A session already exists for this date")
+    place = db.query(LunchPlace).filter(LunchPlace.id == body.place_id).first()
+    if not place:
+        raise HTTPException(404, "Place not found")
+    s = LunchSession(
+        date=body.date,
+        status="done",
+        host_id=user.id,
+        selected_place_id=body.place_id,
+        pickup_location=body.pickup_location,
+        pickup_time=body.pickup_time,
+    )
+    db.add(s)
+    db.commit()
+    db.refresh(s)
+    return s_session(s, db)
+
+
+@app.post("/sessions/{sid}/orders")
+def add_order_to_session(sid: int, body: OrderCreate, db: DbSession = Depends(get_db), user: User = Depends(get_current_user)):
+    s = db.query(LunchSession).filter(LunchSession.id == sid).first()
+    if not s:
+        raise HTTPException(404, "Session not found")
+    order = db.query(SessionOrder).filter(
+        SessionOrder.session_id == s.id, SessionOrder.user_id == user.id
+    ).first()
+    if order:
+        order.item_description = body.item_description
+        order.amount = body.amount
+    else:
+        order = SessionOrder(session_id=s.id, user_id=user.id, **body.model_dump())
+        db.add(order)
+    db.commit()
+    db.refresh(order)
+    return s_order(order)
+
+
+@app.put("/sessions/{sid}/orders/{oid}/paid")
+def mark_paid_in_session(sid: int, oid: int, db: DbSession = Depends(get_db), user: User = Depends(get_current_user)):
+    order = db.query(SessionOrder).filter(
+        SessionOrder.id == oid,
+        SessionOrder.session_id == sid,
+        SessionOrder.user_id == user.id,
+    ).first()
+    if not order:
+        raise HTTPException(404, "Order not found")
+    order.is_paid = True
+    db.commit()
+    return {"ok": True}

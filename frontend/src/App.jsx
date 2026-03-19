@@ -3,6 +3,7 @@ import { api } from './api'
 import Header from './components/Header'
 import TodayView from './components/TodayView'
 import PlacesView from './components/PlacesView'
+import HistoryView from './components/HistoryView'
 
 export default function App() {
   const [me, setMe] = useState(null)
@@ -77,6 +78,7 @@ export default function App() {
           {[
             { key: 'today', label: "Today's Lunch" },
             { key: 'places', label: 'Lunch Places' },
+            { key: 'history', label: 'History' },
           ].map(({ key, label }) => (
             <button
               key={key}
@@ -99,6 +101,9 @@ export default function App() {
         )}
         {tab === 'places' && (
           <PlacesView places={places} me={me} onRefresh={loadData} googleMapsApiKey={googleMapsApiKey} />
+        )}
+        {tab === 'history' && (
+          <HistoryView places={places} me={me} />
         )}
       </main>
     </div>

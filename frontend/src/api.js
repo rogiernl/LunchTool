@@ -33,4 +33,9 @@ export const api = {
   setPickup: (data) => req('PUT', '/session/today/pickup', data),
   addOrder: (item_description, amount) => req('POST', '/session/today/orders', { item_description, amount: amount || null }),
   markPaid: (id) => req('PUT', `/session/today/orders/${id}/paid`, {}),
+
+  getSessions: () => req('GET', '/sessions'),
+  createRetroactive: (data) => req('POST', '/sessions/retroactive', data),
+  addOrderToSession: (sid, item_description, amount) => req('POST', `/sessions/${sid}/orders`, { item_description, amount: amount || null }),
+  markPaidInSession: (sid, oid) => req('PUT', `/sessions/${sid}/orders/${oid}/paid`, {}),
 }
