@@ -797,6 +797,56 @@ function RetroactiveForm({ places, onCreated, onCancel }) {
 
 // ─── Main view ───────────────────────────────────────────────────────────────
 
+// ─── Host leaderboard ────────────────────────────────────────────────────────
+
+function HostLeaderboard({ sessions, me }) {
+  const tally = {}
+  sessions.forEach((s) => {
+    if (!s.host) return
+    const id = s.host.id
+    if (!tally[id]) tally[id] = { user: s.host, count: 0, total: 0 }
+    tally[id].count += 1
+    tally[id].total += s.total_amount || 0
+  })
+
+  const rows = Object.values(tally).sort((a, b) => b.total - a.total)
+  if (rows.length === 0) return null
+
+  const maxTotal = rows[0].total
+
+  return (
+    <div className="bg-white rounded-lg shadow p-5">
+      <h3 className="text-base font-semibold text-gray-900 mb-4">Host leaderboard</h3>
+      <div className="space-y-3">
+        {rows.map((row, i) => {
+          const isMe = row.user.id === me?.id
+          const barWidth = maxTotal > 0 ? Math.round((row.total / maxTotal) * 100) : 0
+          return (
+            <div key={row.user.id}>
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                  {i === 0 && <span className="text-xs font-bold text-yellow-500">★</span>}
+                  <span className={`text-sm font-medium ${isMe ? 'text-orange-600' : 'text-gray-800'}`}>
+                    {displayName(row.user)}{isMe ? ' (you)' : ''}
+                  </span>
+                  <span className="text-xs text-gray-400">{row.count}×</span>
+                </div>
+                <span className="text-sm font-semibold text-gray-700">€{row.total.toFixed(2)}</span>
+              </div>
+              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full ${isMe ? 'bg-orange-400' : 'bg-gray-300'}`}
+                  style={{ width: `${barWidth}%` }}
+                />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function HistoryView({ places, me }) {
   const [sessions, setSessions] = useState(null)
   const [showForm, setShowForm] = useState(false)
@@ -819,6 +869,7 @@ export default function HistoryView({ places, me }) {
   }
 
   const done = sessions?.filter((s) => s.status === 'done') || []
+  const allSettled = sessions?.filter((s) => ['done', 'settling'].includes(s.status)) || []
 
   if (error) return (
     <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">{error}</div>
@@ -858,6 +909,10 @@ export default function HistoryView({ places, me }) {
             <DoneCard key={s.id} session={s} me={me} onRefresh={load} />
           ))}
         </div>
+      )}
+
+      {allSettled.length > 0 && (
+        <HostLeaderboard sessions={allSettled} me={me} />
       )}
     </div>
   )
