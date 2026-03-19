@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '../api'
+import { StarRating } from './PlacesView'
 
 function displayName(user) {
   return user.friendly_name || user.email
@@ -148,9 +149,12 @@ export default function VotingView({ session, places, me, onRefresh }) {
                     />
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-gray-900">{place.name}</div>
-                      {place.description && (
-                        <div className="text-sm text-gray-500">{place.description}</div>
-                      )}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {place.description && (
+                          <span className="text-sm text-gray-500">{place.description}</span>
+                        )}
+                        <StarRating rating={place.google_rating} />
+                      </div>
                       {place.address && (
                         <div className="text-xs text-gray-400">{place.address}</div>
                       )}

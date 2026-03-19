@@ -6,6 +6,21 @@ function displayName(user) {
   return user.friendly_name || user.email
 }
 
+export function StarRating({ rating }) {
+  if (rating == null) return null
+  const full = Math.floor(rating)
+  const half = rating - full >= 0.5
+  const empty = 5 - full - (half ? 1 : 0)
+  return (
+    <span className="inline-flex items-center gap-0.5 text-amber-400 text-sm" title={`${rating} / 5`}>
+      {'★'.repeat(full)}
+      {half ? '½' : ''}
+      <span className="text-gray-300">{'★'.repeat(empty)}</span>
+      <span className="text-gray-500 text-xs ml-1">{rating.toFixed(1)}</span>
+    </span>
+  )
+}
+
 // Singleton loader — created once when API key is known
 let _loader = null
 function getLoader(apiKey) {
@@ -19,6 +34,7 @@ function PlaceForm({ initial, onSave, onCancel, googleMapsApiKey }) {
   const [name, setName] = useState(initial?.name || '')
   const [description, setDescription] = useState(initial?.description || '')
   const [address, setAddress] = useState(initial?.address || '')
+  const [googleRating, setGoogleRating] = useState(initial?.google_rating ?? null)
   const [hasOrderAhead, setHasOrderAhead] = useState(initial?.has_order_ahead || false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -35,15 +51,20 @@ function PlaceForm({ initial, onSave, onCancel, googleMapsApiKey }) {
       if (!mounted || !containerRef.current) return
 
       el = new PlaceAutocompleteElement({ types: ['establishment'] })
-      // Match the look of the other inputs
       el.style.cssText = 'width:100%;font-size:0.875rem;'
       containerRef.current.appendChild(el)
 
       el.addEventListener('gmp-placeselect', async (event) => {
         const { place } = event
-        await place.fetchFields({ fields: ['displayName', 'formattedAddress'] })
-        setName((prev) => prev || place.displayName || '')
-        setAddress(place.formattedAddress || '')
+        try {
+          await place.fetchFields({ fields: ['displayName', 'formattedAddress', 'rating'] })
+        } catch (err) {
+          console.warn('Places fetchFields error:', err)
+        }
+        // displayName is always available (shown in dropdown), address/rating require fetchFields
+        if (place.displayName) setName((prev) => prev || place.displayName)
+        if (place.formattedAddress) setAddress(place.formattedAddress)
+        if (place.rating != null) setGoogleRating(place.rating)
         document.getElementById('place-name-input')?.focus()
       })
     })
@@ -66,6 +87,7 @@ function PlaceForm({ initial, onSave, onCancel, googleMapsApiKey }) {
         name: name.trim(),
         description: description.trim() || null,
         address: address.trim() || null,
+        google_rating: googleRating,
         has_order_ahead: hasOrderAhead,
       })
     } catch (e) {
@@ -81,12 +103,11 @@ function PlaceForm({ initial, onSave, onCancel, googleMapsApiKey }) {
         <div className="bg-red-50 border border-red-200 rounded p-2 text-red-700 text-sm">{error}</div>
       )}
 
-      {/* Google Places search — only shown when API key is available */}
       {googleMapsApiKey && (
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Search for a business</label>
           <div ref={containerRef} className="w-full" />
-          <p className="text-xs text-gray-400 mt-1">Select a result to auto-fill name and address</p>
+          <p className="text-xs text-gray-400 mt-1">Select a result to auto-fill name, address and rating</p>
         </div>
       )}
 
@@ -114,6 +135,13 @@ function PlaceForm({ initial, onSave, onCancel, googleMapsApiKey }) {
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
         />
       </div>
+
+      {googleRating != null && (
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <span>Google rating:</span>
+          <StarRating rating={googleRating} />
+        </div>
+      )}
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
@@ -240,6 +268,7 @@ export default function PlacesView({ places, me, onRefresh, googleMapsApiKey }) 
                           Order ahead
                         </span>
                       )}
+                      <StarRating rating={place.google_rating} />
                     </div>
                     {place.description && (
                       <p className="text-sm text-gray-500 mt-0.5">{place.description}</p>

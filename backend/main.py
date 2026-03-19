@@ -30,6 +30,7 @@ class LunchPlace(Base):
     name = Column(String, nullable=False)
     description = Column(String, nullable=True)
     address = Column(String, nullable=True)
+    google_rating = Column(Float, nullable=True)
     has_order_ahead = Column(Boolean, default=False)
     added_by_id = Column(Integer, ForeignKey("users.id"))
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -87,6 +88,7 @@ def _add_column_if_missing(table, column, col_type):
             conn.commit()
 
 _add_column_if_missing("lunch_places", "address", "TEXT")
+_add_column_if_missing("lunch_places", "google_rating", "REAL")
 _add_column_if_missing("session_orders", "amount", "REAL")
 
 
@@ -159,6 +161,7 @@ def s_place(p):
         "name": p.name,
         "description": p.description,
         "address": p.address,
+        "google_rating": p.google_rating,
         "has_order_ahead": p.has_order_ahead,
         "added_by": s_user(p.added_by),
     }
@@ -193,6 +196,7 @@ class PlaceCreate(BaseModel):
     name: str
     description: Optional[str] = None
     address: Optional[str] = None
+    google_rating: Optional[float] = None
     has_order_ahead: bool = False
 
 

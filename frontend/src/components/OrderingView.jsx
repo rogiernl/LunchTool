@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import QRCode from 'react-qr-code'
 import { api } from '../api'
+import { StarRating } from './PlacesView'
 
 function displayName(user) {
   return user.friendly_name || user.email
@@ -82,6 +83,7 @@ export default function OrderingView({ session, me, onRefresh }) {
             {session.selected_place?.address && (
               <p className="text-sm text-gray-400 mt-0.5">{session.selected_place.address}</p>
             )}
+            <StarRating rating={session.selected_place?.google_rating} />
             {session.selected_place?.has_order_ahead && (
               <span className="inline-block mt-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
                 Order ahead required
