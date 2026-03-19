@@ -545,8 +545,6 @@ function RetroactiveForm({ places, onCreated, onCancel }) {
   const [totalAmount, setTotalAmount] = useState('')
   const [gratuity, setGratuity] = useState('')
   const [attendeeCount, setAttendeeCount] = useState('')
-  const [pickupLocation, setPickupLocation] = useState('')
-  const [pickupTime, setPickupTime] = useState('')
   const [imageFile, setImageFile] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -565,8 +563,6 @@ function RetroactiveForm({ places, onCreated, onCancel }) {
         meal_type: mealType,
         gratuity: gratuity ? parseFloat(gratuity) : null,
         attendee_count: attendeeCount ? parseInt(attendeeCount) : null,
-        pickup_location: pickupLocation.trim() || null,
-        pickup_time: pickupTime.trim() || null,
       })
       if (imageFile) {
         await api.uploadSessionImage(session.id, imageFile).catch(() => {})
@@ -688,27 +684,6 @@ function RetroactiveForm({ places, onCreated, onCancel }) {
             = €{gratuityPerPerson}/p
           </div>
         )}
-      </div>
-
-      {/* Location + time */}
-      <div className="flex gap-3">
-        <div className="flex-1">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-          <input
-            type="text" value={pickupLocation}
-            onChange={(e) => setPickupLocation(e.target.value)}
-            placeholder="e.g. Main entrance"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-          />
-        </div>
-        <div className="w-28">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Time</label>
-          <input
-            type="time" value={pickupTime}
-            onChange={(e) => setPickupTime(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-          />
-        </div>
       </div>
 
       {/* Receipt */}
