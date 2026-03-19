@@ -233,6 +233,7 @@ def get_config():
 
 @app.get("/places-autocomplete")
 async def places_autocomplete(q: str, _: User = Depends(get_current_user)):
+    import logging
     api_key = os.getenv("GOOGLE_MAPS_API_KEY")
     if not api_key or len(q.strip()) < 2:
         return []
@@ -242,7 +243,6 @@ async def places_autocomplete(q: str, _: User = Depends(get_current_user)):
             headers={"X-Goog-Api-Key": api_key, "Content-Type": "application/json"},
             json={
                 "input": q,
-                "includedPrimaryTypes": ["restaurant", "food", "cafe", "bar", "meal_takeaway", "meal_delivery"],
                 "locationBias": {
                     "circle": {
                         "center": {"latitude": 52.0907, "longitude": 5.1214},
@@ -252,9 +252,11 @@ async def places_autocomplete(q: str, _: User = Depends(get_current_user)):
             },
         )
     if not resp.is_success:
+        logging.warning("Places autocomplete error %s: %s", resp.status_code, resp.text)
         return []
+    data = resp.json()
     suggestions = []
-    for s in resp.json().get("suggestions", []):
+    for s in data.get("suggestions", []):
         p = s.get("placePrediction", {})
         if not p:
             continue
