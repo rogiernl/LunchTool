@@ -5,6 +5,14 @@ import PickupView from './PickupView'
 export default function TodayView({ session, places, me, onRefresh }) {
   if (!session) return null
 
+  const isPastLunch = new Date().getHours() >= 13
+  const hasActivity = session.status !== 'voting' || session.host || session.orders?.length > 0
+  if (isPastLunch && !hasActivity) return (
+    <div className="bg-white rounded-lg shadow p-5 text-center text-gray-400 text-sm">
+      Lunch has passed for today.
+    </div>
+  )
+
   const statusLabels = {
     voting: 'Voting',
     ordering: 'Ordering',
