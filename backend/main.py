@@ -221,6 +221,11 @@ class OrderCreate(BaseModel):
 
 # ─── Routes ──────────────────────────────────────────────────────────────────
 
+@app.get("/config")
+def get_config():
+    return {"google_maps_api_key": os.getenv("GOOGLE_MAPS_API_KEY", "")}
+
+
 @app.get("/me")
 def get_me(user: User = Depends(get_current_user)):
     return s_user(user)
@@ -254,8 +259,6 @@ def update_place(pid: int, body: PlaceCreate, db: DbSession = Depends(get_db), u
     p = db.query(LunchPlace).filter(LunchPlace.id == pid).first()
     if not p:
         raise HTTPException(404, "Not found")
-    if p.added_by_id != user.id:
-        raise HTTPException(403, "Not your place")
     for k, v in body.model_dump().items():
         setattr(p, k, v)
     db.commit()

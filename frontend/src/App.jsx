@@ -8,19 +8,22 @@ export default function App() {
   const [me, setMe] = useState(null)
   const [session, setSession] = useState(null)
   const [places, setPlaces] = useState([])
+  const [googleMapsApiKey, setGoogleMapsApiKey] = useState('')
   const [tab, setTab] = useState('today')
   const [error, setError] = useState(null)
 
   const loadData = useCallback(async () => {
     try {
-      const [meData, sessionData, placesData] = await Promise.all([
+      const [meData, sessionData, placesData, config] = await Promise.all([
         api.getMe(),
         api.getSession(),
         api.getPlaces(),
+        api.getConfig(),
       ])
       setMe(meData)
       setSession(sessionData)
       setPlaces(placesData)
+      if (config.google_maps_api_key) setGoogleMapsApiKey(config.google_maps_api_key)
       setError(null)
     } catch (e) {
       setError(e.message)
@@ -95,7 +98,7 @@ export default function App() {
           <TodayView session={session} places={places} me={me} onRefresh={loadData} />
         )}
         {tab === 'places' && (
-          <PlacesView places={places} me={me} onRefresh={loadData} />
+          <PlacesView places={places} me={me} onRefresh={loadData} googleMapsApiKey={googleMapsApiKey} />
         )}
       </main>
     </div>
