@@ -27,6 +27,7 @@ export const api = {
 
   getSession: () => req('GET', '/session/today'),
   castVote: (data) => req('POST', '/session/today/vote', data),
+  extendVote: () => req('POST', '/session/today/extend-vote', {}),
   takeHost: (data) => req('POST', '/session/today/host', data),
   setPayment: (payment_url) => req('PUT', '/session/today/payment', { payment_url }),
   setPickup: (data) => req('PUT', '/session/today/pickup', data),

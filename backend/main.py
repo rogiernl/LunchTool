@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, ForeignKey, Date, Float, text
 from sqlalchemy.orm import declarative_base, sessionmaker, Session as DbSession, relationship
 from pydantic import BaseModel
-from datetime import datetime, date, time
+from datetime import datetime, date, time, timedelta
 from typing import Optional, List
 import os
 import httpx
@@ -46,6 +46,7 @@ class LunchSession(Base):
     status = Column(String, default="voting")
     host_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     selected_place_id = Column(Integer, ForeignKey("lunch_places.id"), nullable=True)
+    vote_deadline = Column(DateTime, nullable=True)
     payment_url = Column(String, nullable=True)
     pickup_location = Column(String, nullable=True)
     pickup_time = Column(String, nullable=True)
@@ -89,6 +90,7 @@ def _add_column_if_missing(table, column, col_type):
             conn.commit()
 
 _add_column_if_missing("lunch_places", "address", "TEXT")
+_add_column_if_missing("lunch_sessions", "vote_deadline", "DATETIME")
 _add_column_if_missing("lunch_places", "google_rating", "REAL")
 _add_column_if_missing("session_orders", "amount", "REAL")
 
@@ -131,18 +133,25 @@ def get_current_user(request: Request, db: DbSession = Depends(get_db)) -> User:
     return user
 
 
-def voting_open() -> bool:
-    return datetime.now().time() < time(11, 0)
+def voting_open(session: LunchSession) -> bool:
+    deadline = session.vote_deadline or datetime.combine(session.date, time(11, 0))
+    return datetime.now() < deadline
 
 
 def get_today(db: DbSession) -> LunchSession:
     today = date.today()
     session = db.query(LunchSession).filter(LunchSession.date == today).first()
     if not session:
-        session = LunchSession(date=today)
+        session = LunchSession(
+            date=today,
+            vote_deadline=datetime.combine(today, time(11, 0)),
+        )
         db.add(session)
         db.commit()
         db.refresh(session)
+    elif session.vote_deadline is None:
+        session.vote_deadline = datetime.combine(session.date, time(11, 0))
+        db.commit()
     return session
 
 
@@ -360,16 +369,17 @@ def get_session(db: DbSession = Depends(get_db), _: User = Depends(get_current_u
         "pickup_time": s.pickup_time,
         "votes": [s_vote(v) for v in votes],
         "orders": [s_order(o) for o in orders],
-        "can_vote": voting_open() and s.status == "voting",
+        "vote_deadline": s.vote_deadline.isoformat() if s.vote_deadline else None,
+        "can_vote": voting_open(s) and s.status == "voting",
         "server_time": datetime.now().isoformat(),
     }
 
 
 @app.post("/session/today/vote")
 def cast_vote(body: VoteCreate, db: DbSession = Depends(get_db), user: User = Depends(get_current_user)):
-    if not voting_open():
-        raise HTTPException(400, "Voting closed after 11:00")
     s = get_today(db)
+    if not voting_open(s):
+        raise HTTPException(400, "Voting is closed")
     if s.status != "voting":
         raise HTTPException(400, "Session is not in voting phase")
     place = db.query(LunchPlace).filter(LunchPlace.id == body.lunch_place_id).first()
@@ -387,6 +397,16 @@ def cast_vote(body: VoteCreate, db: DbSession = Depends(get_db), user: User = De
     db.commit()
     db.refresh(vote)
     return s_vote(vote)
+
+
+@app.post("/session/today/extend-vote")
+def extend_vote(db: DbSession = Depends(get_db), _: User = Depends(get_current_user)):
+    s = get_today(db)
+    if s.status != "voting":
+        raise HTTPException(400, "Session is not in voting phase")
+    s.vote_deadline = (s.vote_deadline or datetime.combine(s.date, time(11, 0))) + timedelta(minutes=20)
+    db.commit()
+    return {"vote_deadline": s.vote_deadline.isoformat()}
 
 
 @app.post("/session/today/host")

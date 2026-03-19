@@ -6,19 +6,17 @@ function displayName(user) {
   return user.friendly_name || user.email
 }
 
-function useCountdown() {
+function useCountdown(deadlineISO) {
   const [timeLeft, setTimeLeft] = useState('')
 
   useEffect(() => {
+    const deadline = deadlineISO ? new Date(deadlineISO) : (() => {
+      const d = new Date(); d.setHours(11, 0, 0, 0); return d
+    })()
+
     const update = () => {
-      const now = new Date()
-      const deadline = new Date()
-      deadline.setHours(11, 0, 0, 0)
-      const diff = deadline - now
-      if (diff <= 0) {
-        setTimeLeft('closed')
-        return
-      }
+      const diff = deadline - new Date()
+      if (diff <= 0) { setTimeLeft('closed'); return }
       const h = Math.floor(diff / 3600000)
       const m = Math.floor((diff % 3600000) / 60000)
       const s = Math.floor((diff % 60000) / 1000)
@@ -27,7 +25,7 @@ function useCountdown() {
     update()
     const t = setInterval(update, 1000)
     return () => clearInterval(t)
-  }, [])
+  }, [deadlineISO])
 
   return timeLeft
 }
@@ -39,7 +37,8 @@ export default function VotingView({ session, places, me, onRefresh }) {
   const [showHostForm, setShowHostForm] = useState(false)
   const [hostPlaceId, setHostPlaceId] = useState('')
   const [error, setError] = useState(null)
-  const countdown = useCountdown()
+  const [extending, setExtending] = useState(false)
+  const countdown = useCountdown(session.vote_deadline)
 
   const myVote = session.votes.find((v) => v.user.id === me.id)
 
@@ -98,9 +97,23 @@ export default function VotingView({ session, places, me, onRefresh }) {
     <div className="space-y-4">
       {/* Status banner */}
       {session.can_vote ? (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center justify-between">
-          <span className="text-blue-800 font-medium">Voting is open</span>
-          <span className="text-blue-600 text-sm font-mono">Closes in {countdown}</span>
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center justify-between gap-3">
+          <div>
+            <span className="text-blue-800 font-medium">Voting is open</span>
+            <span className="text-blue-600 text-sm font-mono ml-3">Closes in {countdown}</span>
+          </div>
+          <button
+            onClick={async () => {
+              setExtending(true)
+              try { await api.extendVote(); await onRefresh() }
+              catch (e) { setError(e.message) }
+              finally { setExtending(false) }
+            }}
+            disabled={extending}
+            className="shrink-0 text-xs font-medium px-3 py-1.5 bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200 disabled:opacity-50 transition-colors"
+          >
+            {extending ? '…' : '+20 min'}
+          </button>
         </div>
       ) : (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
