@@ -3,27 +3,30 @@ import { api } from './api'
 import Header from './components/Header'
 import TodayView from './components/TodayView'
 import PlacesView from './components/PlacesView'
-import HistoryView from './components/HistoryView'
+import HistoryView, { SettlingCard } from './components/HistoryView'
 
 export default function App() {
   const [me, setMe] = useState(null)
   const [session, setSession] = useState(null)
   const [places, setPlaces] = useState([])
+  const [settlingSessions, setSettlingSessions] = useState([])
   const [googleMapsApiKey, setGoogleMapsApiKey] = useState('')
   const [tab, setTab] = useState('today')
   const [error, setError] = useState(null)
 
   const loadData = useCallback(async () => {
     try {
-      const [meData, sessionData, placesData, config] = await Promise.all([
+      const [meData, sessionData, placesData, config, allSessions] = await Promise.all([
         api.getMe(),
         api.getSession(),
         api.getPlaces(),
         api.getConfig(),
+        api.getSessions(),
       ])
       setMe(meData)
       setSession(sessionData)
       setPlaces(placesData)
+      setSettlingSessions(allSessions.filter((s) => s.status === 'settling'))
       if (config.google_maps_api_key) setGoogleMapsApiKey(config.google_maps_api_key)
       setError(null)
     } catch (e) {
@@ -97,7 +100,17 @@ export default function App() {
 
       <main className="max-w-4xl mx-auto p-4 space-y-4">
         {tab === 'today' && (
-          <TodayView session={session} places={places} me={me} onRefresh={loadData} />
+          <>
+            <TodayView session={session} places={places} me={me} onRefresh={loadData} />
+            {settlingSessions.length > 0 && (
+              <div className="space-y-3 pt-2">
+                <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Unsettled lunches</h2>
+                {settlingSessions.map((s) => (
+                  <SettlingCard key={s.id} session={s} me={me} onRefresh={loadData} />
+                ))}
+              </div>
+            )}
+          </>
         )}
         {tab === 'places' && (
           <PlacesView places={places} me={me} onRefresh={loadData} googleMapsApiKey={googleMapsApiKey} />

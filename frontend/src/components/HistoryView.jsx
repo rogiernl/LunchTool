@@ -21,7 +21,7 @@ function formatDateShort(iso) {
 
 // ─── Settling session card (open, needs settlement) ──────────────────────────
 
-function SettlingCard({ session, me, onRefresh }) {
+export function SettlingCard({ session, me, onRefresh }) {
   const [orderText, setOrderText] = useState('')
   const [orderAmount, setOrderAmount] = useState('')
   const [paymentUrl, setPaymentUrl] = useState(session.payment_url || '')
@@ -506,7 +506,6 @@ export default function HistoryView({ places, me }) {
     setSessions((prev) => [session, ...(prev || [])])
   }
 
-  const settling = sessions?.filter((s) => s.status === 'settling') || []
   const done = sessions?.filter((s) => s.status === 'done') || []
 
   if (error) return (
@@ -514,55 +513,35 @@ export default function HistoryView({ places, me }) {
   )
 
   return (
-    <div className="space-y-6">
-      {/* Open / settling sessions */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-gray-900">
-            Open lunches
-            {settling.length > 0 && (
-              <span className="ml-2 text-sm font-normal text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full">
-                {settling.length}
-              </span>
-            )}
-          </h2>
-          {!showForm && (
-            <button
-              onClick={() => setShowForm(true)}
-              className="py-2 px-4 bg-orange-500 text-white text-sm rounded-lg font-medium hover:bg-orange-600 transition-colors"
-            >
-              + Record past lunch
-            </button>
-          )}
-        </div>
-
-        {showForm && (
-          <RetroactiveForm
-            places={places}
-            onCreated={handleCreated}
-            onCancel={() => setShowForm(false)}
-          />
-        )}
-
-        {sessions === null ? (
-          <div className="text-gray-400 text-sm">Loading…</div>
-        ) : settling.length === 0 && !showForm ? (
-          <div className="bg-white rounded-lg shadow p-6 text-center text-gray-400 text-sm">
-            No open lunches — all settled!
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {settling.map((s) => (
-              <SettlingCard key={s.id} session={s} me={me} onRefresh={load} />
-            ))}
-          </div>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold text-gray-900">Lunch History</h2>
+        {!showForm && (
+          <button
+            onClick={() => setShowForm(true)}
+            className="py-2 px-4 bg-orange-500 text-white text-sm rounded-lg font-medium hover:bg-orange-600 transition-colors"
+          >
+            + Record past lunch
+          </button>
         )}
       </div>
 
-      {/* Done sessions */}
-      {done.length > 0 && (
+      {showForm && (
+        <RetroactiveForm
+          places={places}
+          onCreated={handleCreated}
+          onCancel={() => setShowForm(false)}
+        />
+      )}
+
+      {sessions === null ? (
+        <div className="text-gray-400 text-sm">Loading…</div>
+      ) : done.length === 0 && !showForm ? (
+        <div className="bg-white rounded-lg shadow p-8 text-center text-gray-400">
+          No past lunches yet.
+        </div>
+      ) : (
         <div className="space-y-3">
-          <h2 className="text-base font-semibold text-gray-500 uppercase tracking-wide text-xs">History</h2>
           {done.map((s) => (
             <DoneCard key={s.id} session={s} me={me} onRefresh={load} />
           ))}
