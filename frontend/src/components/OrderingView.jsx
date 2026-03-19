@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import QRCode from 'react-qr-code'
 import { api } from '../api'
+import QRDisplay from './QRDisplay'
 import { StarRating } from './PlacesView'
 
 function displayName(user) {
@@ -118,17 +118,7 @@ export default function OrderingView({ session, me, onRefresh }) {
 
         {session.payment_url ? (
           <div className="flex flex-col items-center gap-4">
-            <div className="bg-white p-3 rounded-lg border border-gray-200">
-              <QRCode value={session.payment_url} size={180} />
-            </div>
-            <a
-              href={session.payment_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-orange-600 hover:underline break-all text-center"
-            >
-              {session.payment_url}
-            </a>
+            <QRDisplay value={session.payment_url} />
             {isHost && (
               <div className="w-full flex gap-2 mt-1">
                 <input

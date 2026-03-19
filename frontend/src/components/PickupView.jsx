@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import QRCode from 'react-qr-code'
 import { api } from '../api'
+import QRDisplay from './QRDisplay'
 
 function displayName(user) {
   return user.friendly_name || user.email
@@ -83,19 +83,7 @@ export default function PickupView({ session, me, onRefresh }) {
       {session.payment_url && (
         <div className="bg-white rounded-lg shadow p-5">
           <h3 className="text-base font-semibold text-gray-900 mb-4">Pay the host</h3>
-          <div className="flex flex-col items-center gap-3">
-            <div className="bg-white p-3 rounded-lg border border-gray-200">
-              <QRCode value={session.payment_url} size={180} />
-            </div>
-            <a
-              href={session.payment_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-orange-600 hover:underline break-all text-center"
-            >
-              {session.payment_url}
-            </a>
-          </div>
+          <QRDisplay value={session.payment_url} />
         </div>
       )}
 

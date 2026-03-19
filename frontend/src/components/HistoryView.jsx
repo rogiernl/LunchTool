@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import QRCode from 'react-qr-code'
 import { api } from '../api'
+import QRDisplay from './QRDisplay'
 import { StarRating } from './PlacesView'
 
 function displayName(user) {
@@ -221,17 +221,7 @@ export function SettlingCard({ session, me, onRefresh }) {
         <h4 className="text-sm font-semibold text-gray-700 mb-3">Payment</h4>
         {session.payment_url ? (
           <div className="flex flex-col items-center gap-3">
-            <div className="bg-white p-3 rounded-lg border border-gray-200">
-              <QRCode value={session.payment_url} size={160} />
-            </div>
-            <a
-              href={session.payment_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-orange-600 hover:underline break-all text-center"
-            >
-              {session.payment_url}
-            </a>
+            <QRDisplay value={session.payment_url} size={160} />
             {isHost && (
               <div className="w-full flex gap-2">
                 <input
