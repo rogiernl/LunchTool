@@ -7,6 +7,53 @@ function displayName(user) {
   return user.friendly_name || user.email
 }
 
+export function LikeButton({ place, onRefresh }) {
+  const [loading, setLoading] = useState(false)
+
+  const handleClick = async (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setLoading(true)
+    try {
+      await api.toggleLike(place.id)
+      await onRefresh()
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={loading}
+      className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full transition-colors disabled:opacity-50 ${
+        place.liked_by_me
+          ? 'bg-red-100 text-red-600 hover:bg-red-200'
+          : 'bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600'
+      }`}
+      title={place.liked_by_me ? 'Unlike' : 'Like this place'}
+    >
+      <svg className="w-3 h-3" viewBox="0 0 24 24" fill={place.liked_by_me ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+      </svg>
+      {place.like_count > 0 && <span>{place.like_count}</span>}
+    </button>
+  )
+}
+
+export function LastVisit({ date }) {
+  if (!date) return null
+  const d = new Date(date + 'T12:00:00')
+  const diffDays = Math.floor((Date.now() - d) / 86400000)
+  const label = diffDays === 0 ? 'today' : diffDays === 1 ? 'yesterday' : `${diffDays}d ago`
+  return (
+    <span className="text-xs text-gray-400" title={d.toLocaleDateString('nl-NL')}>
+      Last visit: {label}
+    </span>
+  )
+}
+
 export function StarRating({ rating }) {
   if (rating == null) return null
   const full = Math.floor(rating)
@@ -272,7 +319,7 @@ function PlaceForm({ initial, onSave, onCancel, hasGoogleMaps, apiKey }) {
           onChange={(e) => setHasOrderAhead(e.target.checked)}
           className="w-4 h-4 rounded accent-orange-500"
         />
-        <span className="text-sm text-gray-700">Requires ordering ahead</span>
+        <span className="text-sm text-gray-700">Offers ordering ahead</span>
       </label>
 
       <div className="flex gap-2 pt-1">
@@ -415,9 +462,10 @@ export default function PlacesView({ places, me, onRefresh, config }) {
                     {place.address && (
                       <p className="text-sm text-gray-400 mt-0.5">{place.address}</p>
                     )}
-                    <p className="text-xs text-gray-400 mt-1">
-                      Added by {displayName(place.added_by)}
-                    </p>
+                    <div className="flex items-center gap-3 mt-1">
+                      <LikeButton place={place} onRefresh={onRefresh} />
+                      <LastVisit date={place.last_visit} />
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-1 shrink-0">

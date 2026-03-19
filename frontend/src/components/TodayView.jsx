@@ -35,7 +35,7 @@ export default function TodayView({ session, places, me, onRefresh }) {
       </div>
 
       {session.status === 'voting' && (
-        <VotingView session={session} places={places} me={me} onRefresh={onRefresh} />
+        <VotingView session={session} places={places} me={me} onRefresh={onRefresh} onPlacesRefresh={onRefresh} />
       )}
       {session.status === 'ordering' && (
         <OrderingView session={session} me={me} onRefresh={onRefresh} />

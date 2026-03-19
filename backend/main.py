@@ -84,6 +84,16 @@ class SessionOrder(Base):
     user = relationship("User")
 
 
+class PlaceLike(Base):
+    __tablename__ = "place_likes"
+    id = Column(Integer, primary_key=True)
+    place_id = Column(Integer, ForeignKey("lunch_places.id"))
+    user_id = Column(Integer, ForeignKey("users.id"))
+    created_at = Column(DateTime, default=datetime.utcnow)
+    place = relationship("LunchPlace")
+    user = relationship("User")
+
+
 Base.metadata.create_all(bind=engine)
 
 # Migrate existing DBs — add new columns if they don't exist yet
@@ -176,10 +186,10 @@ def s_user(u):
     return {"id": u.id, "email": u.email, "friendly_name": u.friendly_name}
 
 
-def s_place(p):
+def s_place(p, db=None, user_id=None):
     if not p:
         return None
-    return {
+    result = {
         "id": p.id,
         "name": p.name,
         "description": p.description,
@@ -190,7 +200,25 @@ def s_place(p):
         "lng": p.lng,
         "walking_minutes": p.walking_minutes,
         "added_by": s_user(p.added_by),
+        "like_count": 0,
+        "liked_by_me": False,
+        "last_visit": None,
     }
+    if db is not None:
+        likes = db.query(PlaceLike).filter(PlaceLike.place_id == p.id).all()
+        result["like_count"] = len(likes)
+        result["liked_by_me"] = any(l.user_id == user_id for l in likes)
+        last = (
+            db.query(LunchSession)
+            .filter(
+                LunchSession.selected_place_id == p.id,
+                LunchSession.status.in_(["done", "pickup", "ordering", "settling"]),
+            )
+            .order_by(LunchSession.date.desc())
+            .first()
+        )
+        result["last_visit"] = last.date.isoformat() if last else None
+    return result
 
 
 def s_vote(v):
@@ -378,9 +406,11 @@ def update_me(body: UpdateName, user: User = Depends(get_current_user), db: DbSe
 
 
 @app.get("/places")
-def list_places(db: DbSession = Depends(get_db), _: User = Depends(get_current_user)):
-    places = db.query(LunchPlace).order_by(LunchPlace.name).all()
-    return [s_place(p) for p in places]
+def list_places(db: DbSession = Depends(get_db), user: User = Depends(get_current_user)):
+    places = db.query(LunchPlace).all()
+    serialized = [s_place(p, db=db, user_id=user.id) for p in places]
+    serialized.sort(key=lambda p: (-p["like_count"], p["name"].lower()))
+    return serialized
 
 
 async def _enrich_geo(p: LunchPlace):
@@ -460,6 +490,21 @@ def delete_place(pid: int, db: DbSession = Depends(get_db), user: User = Depends
     db.delete(p)
     db.commit()
     return {"ok": True}
+
+
+@app.post("/places/{pid}/like")
+def toggle_like(pid: int, db: DbSession = Depends(get_db), user: User = Depends(get_current_user)):
+    p = db.query(LunchPlace).filter(LunchPlace.id == pid).first()
+    if not p:
+        raise HTTPException(404, "Not found")
+    existing = db.query(PlaceLike).filter(PlaceLike.place_id == pid, PlaceLike.user_id == user.id).first()
+    if existing:
+        db.delete(existing)
+        db.commit()
+        return {"liked": False}
+    db.add(PlaceLike(place_id=pid, user_id=user.id))
+    db.commit()
+    return {"liked": True}
 
 
 @app.get("/session/today")

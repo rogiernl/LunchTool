@@ -22,6 +22,7 @@ export const api = {
   updateMe: (friendly_name) => req('PUT', '/me', { friendly_name }),
 
   getPlaces: () => req('GET', '/places'),
+  toggleLike: (id) => req('POST', `/places/${id}/like`, {}),
   createPlace: (data) => req('POST', '/places', data),
   updatePlace: (id, data) => req('PUT', `/places/${id}`, data),
   deletePlace: (id) => req('DELETE', `/places/${id}`),

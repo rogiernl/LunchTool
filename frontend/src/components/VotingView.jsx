@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '../api'
-import { StarRating } from './PlacesView'
+import { StarRating, LikeButton, LastVisit } from './PlacesView'
 
 function displayName(user) {
   return user.friendly_name || user.email
@@ -30,7 +30,7 @@ function useCountdown(deadlineISO) {
   return timeLeft
 }
 
-export default function VotingView({ session, places, me, onRefresh }) {
+export default function VotingView({ session, places, me, onRefresh, onPlacesRefresh }) {
   const [selectedPlaceId, setSelectedPlaceId] = useState(null)
   const [isJoining, setIsJoining] = useState(true)
   const [loading, setLoading] = useState(false)
@@ -181,11 +181,15 @@ export default function VotingView({ session, places, me, onRefresh }) {
                       {place.address && (
                         <div className="text-xs text-gray-400">{place.address}</div>
                       )}
-                      {place.has_order_ahead && (
-                        <span className="inline-block mt-1 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
-                          Order ahead required
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                        {place.has_order_ahead && (
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                            Order ahead
+                          </span>
+                        )}
+                        <LikeButton place={place} onRefresh={onPlacesRefresh || onRefresh} />
+                        <LastVisit date={place.last_visit} />
+                      </div>
                     </div>
                     {voteCounts[place.id] > 0 && (
                       <span className="ml-2 text-sm text-gray-400 shrink-0">

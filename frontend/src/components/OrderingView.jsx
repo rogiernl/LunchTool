@@ -96,7 +96,7 @@ export default function OrderingView({ session, me, onRefresh }) {
             )}
             {session.selected_place?.has_order_ahead && (
               <span className="inline-block mt-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
-                Order ahead required
+                Offers order ahead
               </span>
             )}
           </div>
