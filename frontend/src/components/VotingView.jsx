@@ -151,6 +151,9 @@ export default function VotingView({ session, places, me, onRefresh }) {
                       {place.description && (
                         <div className="text-sm text-gray-500">{place.description}</div>
                       )}
+                      {place.address && (
+                        <div className="text-xs text-gray-400">{place.address}</div>
+                      )}
                       {place.has_order_ahead && (
                         <span className="inline-block mt-1 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
                           Order ahead required

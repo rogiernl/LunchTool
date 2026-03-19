@@ -11,6 +11,10 @@ export default function PickupView({ session, me, onRefresh }) {
     const myOrder = session.orders.find((o) => o.user.id === me.id)
     return myOrder ? myOrder.item_description : ''
   })
+  const [orderAmount, setOrderAmount] = useState(() => {
+    const myOrder = session.orders.find((o) => o.user.id === me.id)
+    return myOrder?.amount != null ? String(myOrder.amount) : ''
+  })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -36,7 +40,8 @@ export default function PickupView({ session, me, onRefresh }) {
     setLoading(true)
     setError(null)
     try {
-      await api.addOrder(orderText.trim())
+      const amount = orderAmount ? parseFloat(orderAmount) : null
+      await api.addOrder(orderText.trim(), amount)
       await onRefresh()
     } catch (e) {
       setError(e.message)
@@ -116,44 +121,75 @@ export default function PickupView({ session, me, onRefresh }) {
                 </button>
               )}
             </div>
+            {myOrder.amount != null && (
+              <p className="text-sm text-gray-500">Amount: <span className="font-medium text-gray-700">€ {myOrder.amount.toFixed(2)}</span></p>
+            )}
             {/* Allow updating order even in pickup phase */}
-            <div className="flex gap-2 pt-1">
+            <div className="space-y-2 pt-1">
               <input
                 type="text"
                 value={orderText}
                 onChange={(e) => setOrderText(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleOrder()}
                 placeholder="Update your order"
-                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
               />
-              <button
-                onClick={handleOrder}
-                disabled={loading || !orderText.trim() || orderText.trim() === myOrder.item_description}
-                className="px-3 py-2 bg-gray-100 text-gray-600 text-sm rounded-lg hover:bg-gray-200 disabled:opacity-40"
-              >
-                Update
-              </button>
+              <div className="flex gap-2">
+                <div className="relative w-32">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">€</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={orderAmount}
+                    onChange={(e) => setOrderAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  />
+                </div>
+                <button
+                  onClick={handleOrder}
+                  disabled={loading || !orderText.trim()}
+                  className="flex-1 px-3 py-2 bg-gray-100 text-gray-600 text-sm rounded-lg hover:bg-gray-200 disabled:opacity-40"
+                >
+                  Update
+                </button>
+              </div>
             </div>
           </div>
         ) : (
           <div>
             <p className="text-sm text-gray-400 italic mb-3">You haven't added an order yet</p>
-            <div className="flex gap-2">
+            <div className="space-y-2">
               <input
                 type="text"
                 value={orderText}
                 onChange={(e) => setOrderText(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleOrder()}
                 placeholder="What do you want?"
-                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
               />
-              <button
-                onClick={handleOrder}
-                disabled={loading || !orderText.trim()}
-                className="px-4 py-2 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 disabled:opacity-50"
-              >
-                Add
-              </button>
+              <div className="flex gap-2">
+                <div className="relative w-32">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">€</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={orderAmount}
+                    onChange={(e) => setOrderAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full border border-gray-300 rounded-lg pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  />
+                </div>
+                <button
+                  onClick={handleOrder}
+                  disabled={loading || !orderText.trim()}
+                  className="flex-1 px-4 py-2 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 disabled:opacity-50"
+                >
+                  Add
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -169,6 +205,12 @@ export default function PickupView({ session, me, onRefresh }) {
             </span>
           )}
         </div>
+        {session.orders.some((o) => o.amount != null) && (
+          <div className="mb-3 p-3 bg-gray-50 rounded-lg flex justify-between text-sm font-semibold text-gray-700">
+            <span>Total</span>
+            <span>€ {session.orders.reduce((sum, o) => sum + (o.amount || 0), 0).toFixed(2)}</span>
+          </div>
+        )}
 
         {session.orders.length === 0 ? (
           <p className="text-sm text-gray-400 italic">No orders yet</p>
@@ -183,7 +225,7 @@ export default function PickupView({ session, me, onRefresh }) {
                     isMe ? 'bg-orange-50 -mx-5 px-5 rounded' : ''
                   }`}
                 >
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <span
                       className={`text-sm font-medium ${
                         isMe ? 'text-orange-700' : 'text-gray-800'
@@ -194,6 +236,11 @@ export default function PickupView({ session, me, onRefresh }) {
                     </span>
                     <p className="text-sm text-gray-600 truncate">{order.item_description}</p>
                   </div>
+                  {order.amount != null && (
+                    <span className="text-sm font-medium text-gray-600 shrink-0">
+                      € {order.amount.toFixed(2)}
+                    </span>
+                  )}
                   {order.is_paid ? (
                     <span className="shrink-0 text-xs bg-green-100 text-green-700 font-medium px-2 py-0.5 rounded-full">
                       Paid

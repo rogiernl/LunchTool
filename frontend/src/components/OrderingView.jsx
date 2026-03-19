@@ -11,6 +11,10 @@ export default function OrderingView({ session, me, onRefresh }) {
     const myOrder = session.orders.find((o) => o.user.id === me.id)
     return myOrder ? myOrder.item_description : ''
   })
+  const [orderAmount, setOrderAmount] = useState(() => {
+    const myOrder = session.orders.find((o) => o.user.id === me.id)
+    return myOrder?.amount != null ? String(myOrder.amount) : ''
+  })
   const [paymentUrl, setPaymentUrl] = useState(session.payment_url || '')
   const [pickupLocation, setPickupLocation] = useState('')
   const [pickupTime, setPickupTime] = useState('')
@@ -26,7 +30,8 @@ export default function OrderingView({ session, me, onRefresh }) {
     setLoading(true)
     setError(null)
     try {
-      await api.addOrder(orderText.trim())
+      const amount = orderAmount ? parseFloat(orderAmount) : null
+      await api.addOrder(orderText.trim(), amount)
       await onRefresh()
     } catch (e) {
       setError(e.message)
@@ -73,6 +78,9 @@ export default function OrderingView({ session, me, onRefresh }) {
             <h2 className="text-2xl font-bold text-gray-900">{session.selected_place?.name}</h2>
             {session.selected_place?.description && (
               <p className="text-sm text-gray-500 mt-1">{session.selected_place.description}</p>
+            )}
+            {session.selected_place?.address && (
+              <p className="text-sm text-gray-400 mt-0.5">{session.selected_place.address}</p>
             )}
             {session.selected_place?.has_order_ahead && (
               <span className="inline-block mt-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
@@ -160,22 +168,36 @@ export default function OrderingView({ session, me, onRefresh }) {
         <h3 className="text-base font-semibold text-gray-900 mb-3">
           {myOrder ? 'Your order' : 'Add your order'}
         </h3>
-        <div className="flex gap-2">
+        <div className="space-y-2">
           <input
             type="text"
             value={orderText}
             onChange={(e) => setOrderText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleOrder()}
             placeholder="What do you want? e.g. Club sandwich + sparkling water"
-            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
           />
-          <button
-            onClick={handleOrder}
-            disabled={loading || !orderText.trim()}
-            className="px-4 py-2 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 disabled:opacity-50 whitespace-nowrap"
-          >
-            {myOrder ? 'Update' : 'Submit'}
-          </button>
+          <div className="flex gap-2">
+            <div className="relative w-36">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">€</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={orderAmount}
+                onChange={(e) => setOrderAmount(e.target.value)}
+                placeholder="0.00"
+                className="w-full border border-gray-300 rounded-lg pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+              />
+            </div>
+            <button
+              onClick={handleOrder}
+              disabled={loading || !orderText.trim()}
+              className="flex-1 px-4 py-2 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 disabled:opacity-50 whitespace-nowrap"
+            >
+              {myOrder ? 'Update' : 'Submit'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -189,19 +211,34 @@ export default function OrderingView({ session, me, onRefresh }) {
         {session.orders.length === 0 ? (
           <p className="text-sm text-gray-400 italic">No orders yet</p>
         ) : (
-          <ul className="divide-y divide-gray-100">
-            {session.orders.map((order) => (
-              <li key={order.id} className="py-2.5 flex items-start justify-between gap-2">
-                <div>
-                  <span className="text-sm font-medium text-gray-800">
-                    {displayName(order.user)}
-                  </span>
-                  <span className="text-gray-400 mx-1.5">—</span>
-                  <span className="text-sm text-gray-600">{order.item_description}</span>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <>
+            <ul className="divide-y divide-gray-100">
+              {session.orders.map((order) => (
+                <li key={order.id} className="py-2.5 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <span className="text-sm font-medium text-gray-800">
+                      {displayName(order.user)}
+                    </span>
+                    <span className="text-gray-400 mx-1.5">—</span>
+                    <span className="text-sm text-gray-600">{order.item_description}</span>
+                  </div>
+                  {order.amount != null && (
+                    <span className="shrink-0 text-sm font-medium text-gray-700">
+                      € {order.amount.toFixed(2)}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+            {session.orders.some((o) => o.amount != null) && (
+              <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between text-sm font-semibold text-gray-800">
+                <span>Total</span>
+                <span>
+                  € {session.orders.reduce((sum, o) => sum + (o.amount || 0), 0).toFixed(2)}
+                </span>
+              </div>
+            )}
+          </>
         )}
       </div>
 

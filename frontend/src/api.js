@@ -27,6 +27,6 @@ export const api = {
   takeHost: (data) => req('POST', '/session/today/host', data),
   setPayment: (payment_url) => req('PUT', '/session/today/payment', { payment_url }),
   setPickup: (data) => req('PUT', '/session/today/pickup', data),
-  addOrder: (item_description) => req('POST', '/session/today/orders', { item_description }),
+  addOrder: (item_description, amount) => req('POST', '/session/today/orders', { item_description, amount: amount || null }),
   markPaid: (id) => req('PUT', `/session/today/orders/${id}/paid`, {}),
 }

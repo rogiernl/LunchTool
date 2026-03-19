@@ -8,6 +8,7 @@ function displayName(user) {
 function PlaceForm({ initial, onSave, onCancel }) {
   const [name, setName] = useState(initial?.name || '')
   const [description, setDescription] = useState(initial?.description || '')
+  const [address, setAddress] = useState(initial?.address || '')
   const [hasOrderAhead, setHasOrderAhead] = useState(initial?.has_order_ahead || false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -18,7 +19,7 @@ function PlaceForm({ initial, onSave, onCancel }) {
     setLoading(true)
     setError(null)
     try {
-      await onSave({ name: name.trim(), description: description.trim() || null, has_order_ahead: hasOrderAhead })
+      await onSave({ name: name.trim(), description: description.trim() || null, address: address.trim() || null, has_order_ahead: hasOrderAhead })
     } catch (e) {
       setError(e.message)
     } finally {
@@ -50,6 +51,16 @@ function PlaceForm({ initial, onSave, onCancel }) {
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="e.g. Sandwiches & soups, 5 min walk"
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+        <input
+          type="text"
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          placeholder="e.g. Kalverstraat 12, Amsterdam"
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
         />
       </div>
@@ -169,6 +180,9 @@ export default function PlacesView({ places, me, onRefresh }) {
                       </div>
                       {place.description && (
                         <p className="text-sm text-gray-500 mt-0.5">{place.description}</p>
+                      )}
+                      {place.address && (
+                        <p className="text-sm text-gray-400 mt-0.5">{place.address}</p>
                       )}
                       <p className="text-xs text-gray-400 mt-1">
                         Added by {displayName(place.added_by)}

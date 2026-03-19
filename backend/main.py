@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, ForeignKey, Date
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, ForeignKey, Date, Float, text
 from sqlalchemy.orm import declarative_base, sessionmaker, Session as DbSession, relationship
 from pydantic import BaseModel
 from datetime import datetime, date, time
@@ -29,6 +29,7 @@ class LunchPlace(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     description = Column(String, nullable=True)
+    address = Column(String, nullable=True)
     has_order_ahead = Column(Boolean, default=False)
     added_by_id = Column(Integer, ForeignKey("users.id"))
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -69,12 +70,24 @@ class SessionOrder(Base):
     session_id = Column(Integer, ForeignKey("lunch_sessions.id"))
     user_id = Column(Integer, ForeignKey("users.id"))
     item_description = Column(String, nullable=False)
+    amount = Column(Float, nullable=True)
     is_paid = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     user = relationship("User")
 
 
 Base.metadata.create_all(bind=engine)
+
+# Migrate existing DBs — add new columns if they don't exist yet
+def _add_column_if_missing(table, column, col_type):
+    with engine.connect() as conn:
+        cols = [r[1] for r in conn.execute(text(f"PRAGMA table_info({table})")).fetchall()]
+        if column not in cols:
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"))
+            conn.commit()
+
+_add_column_if_missing("lunch_places", "address", "TEXT")
+_add_column_if_missing("session_orders", "amount", "REAL")
 
 
 # ─── App & middleware ─────────────────────────────────────────────────────────
@@ -145,6 +158,7 @@ def s_place(p):
         "id": p.id,
         "name": p.name,
         "description": p.description,
+        "address": p.address,
         "has_order_ahead": p.has_order_ahead,
         "added_by": s_user(p.added_by),
     }
@@ -164,6 +178,7 @@ def s_order(o):
         "id": o.id,
         "user": s_user(o.user),
         "item_description": o.item_description,
+        "amount": o.amount,
         "is_paid": o.is_paid,
     }
 
@@ -177,6 +192,7 @@ class UpdateName(BaseModel):
 class PlaceCreate(BaseModel):
     name: str
     description: Optional[str] = None
+    address: Optional[str] = None
     has_order_ahead: bool = False
 
 
@@ -200,6 +216,7 @@ class PickupCreate(BaseModel):
 
 class OrderCreate(BaseModel):
     item_description: str
+    amount: Optional[float] = None
 
 
 # ─── Routes ──────────────────────────────────────────────────────────────────
@@ -350,6 +367,7 @@ def add_order(body: OrderCreate, db: DbSession = Depends(get_db), user: User = D
     ).first()
     if order:
         order.item_description = body.item_description
+        order.amount = body.amount
     else:
         order = SessionOrder(session_id=s.id, user_id=user.id, **body.model_dump())
         db.add(order)
