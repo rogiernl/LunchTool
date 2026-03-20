@@ -11,6 +11,10 @@ import asyncio
 import httpx
 import shutil
 import pathlib
+import io
+from PIL import Image
+import pillow_heif
+pillow_heif.register_heif_opener()
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:////data/lunchtool.db")
 
@@ -813,10 +817,21 @@ async def upload_session_image(sid: int, file: UploadFile = File(...), db: DbSes
     ext = pathlib.Path(file.filename).suffix.lower()
     if ext not in {".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic", ".heif"}:
         raise HTTPException(400, "Unsupported image type")
-    filename = f"session_{sid}{ext}"
-    dest = IMAGES_DIR / filename
-    with dest.open("wb") as f:
-        shutil.copyfileobj(file.file, f)
+    data = await file.read()
+    # Convert to JPEG for universal browser support; downscale if very large
+    try:
+        img = Image.open(io.BytesIO(data))
+        img = img.convert("RGB")
+        if max(img.size) > 2400:
+            img.thumbnail((2400, 2400), Image.LANCZOS)
+        out = io.BytesIO()
+        img.save(out, format="JPEG", quality=85)
+        out.seek(0)
+        filename = f"session_{sid}.jpg"
+        dest = IMAGES_DIR / filename
+        dest.write_bytes(out.read())
+    except Exception:
+        raise HTTPException(400, "Could not process image")
     s.image_path = filename
     db.commit()
     return {"image_url": f"/api/images/{filename}"}

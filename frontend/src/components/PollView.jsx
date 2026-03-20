@@ -51,22 +51,114 @@ const STATUS_COLORS = {
 }
 const STATUS_LABELS = { yes: 'Yes', no: 'No', maybe: 'Maybe' }
 
+// ── Two-month date picker ─────────────────────────────────────────────────────
+
+const DAY_NAMES = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
+
+function toIso(y, m, d) {
+  return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+}
+
+function CalendarMonth({ year, month, selected, onToggle }) {
+  // First day of month (Mon=0 … Sun=6)
+  const firstDow = (new Date(year, month, 1).getDay() + 6) % 7
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const today = new Date(); today.setHours(0,0,0,0)
+
+  const cells = []
+  for (let i = 0; i < firstDow; i++) cells.push(null)
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+
+  return (
+    <div>
+      <p className="text-xs font-semibold text-gray-600 text-center mb-2">
+        {MONTH_NAMES[month]} {year}
+      </p>
+      <div className="grid grid-cols-7 gap-0.5">
+        {DAY_NAMES.map((n, i) => (
+          <div key={n} className={`text-center text-xs font-medium pb-1 ${i >= 5 ? 'text-gray-300' : 'text-gray-400'}`}>{n}</div>
+        ))}
+        {cells.map((d, i) => {
+          if (!d) return <div key={`e${i}`} />
+          const iso = toIso(year, month, d)
+          const dow = (i - firstDow) % 7  // 0=Mon..6=Sun
+          const isWeekend = dow >= 5
+          const isPast = new Date(year, month, d) < today
+          const isSelected = selected.has(iso)
+          return (
+            <button
+              key={iso}
+              type="button"
+              disabled={isPast}
+              onClick={() => onToggle(iso)}
+              className={[
+                'text-xs rounded py-1 font-medium transition-colors leading-none',
+                isPast ? 'text-gray-200 cursor-default' :
+                isSelected ? 'bg-orange-500 text-white' :
+                isWeekend ? 'text-gray-300 hover:bg-orange-50 hover:text-orange-400' :
+                'text-gray-700 hover:bg-orange-50 hover:text-orange-500',
+              ].join(' ')}
+            >
+              {d}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function DatePicker({ selected, onToggle }) {
+  const now = new Date()
+  const months = [
+    { year: now.getFullYear(), month: now.getMonth() },
+    { year: now.getMonth() === 11 ? now.getFullYear() + 1 : now.getFullYear(), month: (now.getMonth() + 1) % 12 },
+  ]
+  const sorted = [...selected].sort()
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-4">
+        {months.map(({ year, month }) => (
+          <CalendarMonth key={`${year}-${month}`} year={year} month={month} selected={selected} onToggle={onToggle} />
+        ))}
+      </div>
+      {sorted.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 pt-1">
+          {sorted.map((iso) => (
+            <span key={iso} className="inline-flex items-center gap-1 bg-orange-100 text-orange-700 text-xs font-medium px-2 py-0.5 rounded-full">
+              {formatDate(iso)}
+              <button type="button" onClick={() => onToggle(iso)} className="hover:text-red-500 leading-none">×</button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Create poll form ──────────────────────────────────────────────────────────
 
 function CreatePollForm({ onCreated, onCancel }) {
   const [title, setTitle] = useState('')
   const [pollType, setPollType] = useState('dinner')
   const [description, setDescription] = useState('')
-  const [dateInputs, setDateInputs] = useState([''])
+  const [selectedDates, setSelectedDates] = useState(new Set())
   const [saving, setSaving] = useState(false)
 
-  function addDate() { setDateInputs((d) => [...d, '']) }
-  function removeDate(i) { setDateInputs((d) => d.filter((_, j) => j !== i)) }
-  function setDate(i, v) { setDateInputs((d) => d.map((x, j) => (j === i ? v : x))) }
+  function toggleDate(iso) {
+    setSelectedDates((prev) => {
+      const next = new Set(prev)
+      if (next.has(iso)) next.delete(iso)
+      else next.add(iso)
+      return next
+    })
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
-    const dates = dateInputs.filter(Boolean)
+    const dates = [...selectedDates].sort()
     if (!title.trim() || dates.length === 0) return
     setSaving(true)
     try {
@@ -118,24 +210,11 @@ function CreatePollForm({ onCreated, onCancel }) {
         onChange={(e) => setDescription(e.target.value)}
       />
 
-      <div className="space-y-2">
-        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Date options</p>
-        {dateInputs.map((d, i) => (
-          <div key={i} className="flex gap-2 items-center">
-            <input
-              type="date"
-              className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
-              value={d}
-              onChange={(e) => setDate(i, e.target.value)}
-            />
-            {dateInputs.length > 1 && (
-              <button type="button" onClick={() => removeDate(i)} className="text-gray-400 hover:text-red-500 text-xl leading-none px-1">×</button>
-            )}
-          </div>
-        ))}
-        <button type="button" onClick={addDate} className="text-sm text-orange-600 hover:text-orange-700 font-medium">
-          + Add date option
-        </button>
+      <div>
+        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+          Select date options <span className="normal-case font-normal text-gray-400">(click to toggle)</span>
+        </p>
+        <DatePicker selected={selectedDates} onToggle={toggleDate} />
       </div>
 
       <div className="flex gap-2 justify-end pt-1">
@@ -144,10 +223,10 @@ function CreatePollForm({ onCreated, onCancel }) {
         </button>
         <button
           type="submit"
-          disabled={saving}
+          disabled={saving || selectedDates.size === 0}
           className="px-4 py-2 bg-orange-500 text-white text-sm font-medium rounded-lg hover:bg-orange-600 disabled:opacity-50"
         >
-          {saving ? 'Creating…' : 'Create poll'}
+          {saving ? 'Creating…' : `Create poll${selectedDates.size > 0 ? ` (${selectedDates.size})` : ''}`}
         </button>
       </div>
     </form>
