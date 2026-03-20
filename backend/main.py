@@ -206,19 +206,20 @@ _remove_lunch_sessions_date_unique()
 def _convert_heic_images():
     """One-time migration: convert any HEIC/HEIF receipts to JPEG and update DB."""
     heic_exts = {".heic", ".heif"}
+    images_dir = pathlib.Path("/data/images")
     with sessionmaker(bind=engine)() as db:
         sessions = db.query(LunchSession).filter(LunchSession.image_path.isnot(None)).all()
         for s in sessions:
             p = pathlib.Path(s.image_path)
             if p.suffix.lower() not in heic_exts:
                 continue
-            src = IMAGES_DIR / s.image_path
+            src = images_dir / s.image_path
             if not src.exists():
                 continue
             try:
                 img = Image.open(src).convert("RGB")
                 new_name = p.stem + ".jpg"
-                dest = IMAGES_DIR / new_name
+                dest = images_dir / new_name
                 img.save(dest, format="JPEG", quality=85)
                 src.unlink()
                 s.image_path = new_name
