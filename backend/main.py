@@ -63,6 +63,7 @@ class LunchSession(Base):
     meal_type = Column(String, default="lunch")
     image_path = Column(String, nullable=True)
     place_name = Column(String, nullable=True)
+    farewell_payment_url = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     host = relationship("User", foreign_keys=[host_id])
     selected_place = relationship("LunchPlace", foreign_keys=[selected_place_id])
@@ -102,6 +103,39 @@ class PlaceLike(Base):
     user = relationship("User")
 
 
+class ActivityPoll(Base):
+    __tablename__ = "activity_polls"
+    id = Column(Integer, primary_key=True)
+    title = Column(String, nullable=False)
+    poll_type = Column(String, default="dinner")  # dinner | drinks
+    description = Column(String, nullable=True)
+    status = Column(String, default="open")  # open | confirmed | cancelled
+    created_by_id = Column(Integer, ForeignKey("users.id"))
+    confirmed_option_id = Column(Integer, nullable=True)
+    farewell_payment_url = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    created_by = relationship("User", foreign_keys=[created_by_id])
+
+
+class ActivityPollOption(Base):
+    __tablename__ = "activity_poll_options"
+    id = Column(Integer, primary_key=True)
+    poll_id = Column(Integer, ForeignKey("activity_polls.id"))
+    date = Column(Date, nullable=False)
+    time_label = Column(String, nullable=True)
+
+
+class ActivityPollResponse(Base):
+    __tablename__ = "activity_poll_responses"
+    id = Column(Integer, primary_key=True)
+    poll_id = Column(Integer, ForeignKey("activity_polls.id"))
+    option_id = Column(Integer, ForeignKey("activity_poll_options.id"))
+    user_id = Column(Integer, ForeignKey("users.id"))
+    status = Column(String)  # yes | no | maybe
+    created_at = Column(DateTime, default=datetime.utcnow)
+    user = relationship("User")
+
+
 Base.metadata.create_all(bind=engine)
 
 # Migrate existing DBs — add new columns if they don't exist yet
@@ -125,6 +159,8 @@ _add_column_if_missing("lunch_sessions", "image_path", "TEXT")
 _add_column_if_missing("lunch_sessions", "gratuity", "REAL")
 _add_column_if_missing("lunch_sessions", "attendee_count", "INTEGER")
 _add_column_if_missing("lunch_sessions", "place_name", "TEXT")
+_add_column_if_missing("lunch_sessions", "farewell_payment_url", "TEXT")
+_add_column_if_missing("activity_polls", "farewell_payment_url", "TEXT")
 
 def _remove_lunch_sessions_date_unique():
     with engine.connect() as conn:
@@ -714,6 +750,7 @@ def s_session(s, db):
         "attendee_count": s.attendee_count,
         "meal_type": s.meal_type or "lunch",
         "image_url": f"/api/images/{s.image_path}" if s.image_path else None,
+        "farewell_payment_url": s.farewell_payment_url,
         "votes": [s_vote(v) for v in votes],
         "orders": [s_order(o) for o in orders],
     }
@@ -876,4 +913,148 @@ def mark_paid_in_session(sid: int, oid: int, db: DbSession = Depends(get_db), us
         if paid_sum >= s.total_amount:
             s.status = "done"
             db.commit()
+    return {"ok": True}
+
+
+# ─── Farewell gift ────────────────────────────────────────────────────────────
+
+class FarewellBody(BaseModel):
+    farewell_payment_url: str
+
+@app.put("/sessions/{sid}/farewell")
+def set_farewell(sid: int, body: FarewellBody, db: DbSession = Depends(get_db), user: User = Depends(get_current_user)):
+    s = db.query(LunchSession).filter(LunchSession.id == sid).first()
+    if not s:
+        raise HTTPException(404, "Session not found")
+    if s.host_id == user.id:
+        raise HTTPException(403, "The host cannot set a farewell gift link")
+    s.farewell_payment_url = body.farewell_payment_url.strip() or None
+    db.commit()
+    return {"ok": True}
+
+
+# ─── Activity polls (datumprikker) ────────────────────────────────────────────
+
+def s_poll_option(opt, responses):
+    opt_resp = [r for r in responses if r.option_id == opt.id]
+    return {
+        "id": opt.id,
+        "date": opt.date.isoformat(),
+        "time_label": opt.time_label,
+        "yes_count": sum(1 for r in opt_resp if r.status == "yes"),
+        "maybe_count": sum(1 for r in opt_resp if r.status == "maybe"),
+        "responses": [{"user": s_user(r.user), "status": r.status} for r in opt_resp],
+    }
+
+def s_poll(poll, db, user_id=None):
+    options = db.query(ActivityPollOption).filter(ActivityPollOption.poll_id == poll.id).order_by(ActivityPollOption.date).all()
+    responses = db.query(ActivityPollResponse).filter(ActivityPollResponse.poll_id == poll.id).all()
+    my_responses = {r.option_id: r.status for r in responses if r.user_id == user_id} if user_id else {}
+    conf = db.query(ActivityPollOption).filter(ActivityPollOption.id == poll.confirmed_option_id).first() if poll.confirmed_option_id else None
+    return {
+        "id": poll.id,
+        "title": poll.title,
+        "poll_type": poll.poll_type,
+        "description": poll.description,
+        "status": poll.status,
+        "created_by": s_user(poll.created_by),
+        "confirmed_option_id": poll.confirmed_option_id,
+        "confirmed_option": {"id": conf.id, "date": conf.date.isoformat(), "time_label": conf.time_label} if conf else None,
+        "options": [s_poll_option(opt, responses) for opt in options],
+        "my_responses": my_responses,
+        "has_responded": bool(my_responses),
+        "farewell_payment_url": poll.farewell_payment_url,
+    }
+
+@app.get("/polls")
+def list_polls(db: DbSession = Depends(get_db), user: User = Depends(get_current_user)):
+    polls = db.query(ActivityPoll).filter(ActivityPoll.status.in_(["open", "confirmed"])).order_by(ActivityPoll.created_at.desc()).all()
+    return [s_poll(p, db, user.id) for p in polls]
+
+class PollOptionIn(BaseModel):
+    date: date
+    time_label: Optional[str] = None
+
+class PollCreate(BaseModel):
+    title: str
+    poll_type: str = "dinner"
+    description: Optional[str] = None
+    options: List[PollOptionIn]
+
+@app.post("/polls")
+def create_poll(body: PollCreate, db: DbSession = Depends(get_db), user: User = Depends(get_current_user)):
+    poll = ActivityPoll(title=body.title, poll_type=body.poll_type, description=body.description, created_by_id=user.id)
+    db.add(poll)
+    db.commit()
+    db.refresh(poll)
+    for opt in body.options:
+        db.add(ActivityPollOption(poll_id=poll.id, date=opt.date, time_label=opt.time_label))
+    db.commit()
+    return s_poll(poll, db, user.id)
+
+class PollResponseItem(BaseModel):
+    option_id: int
+    status: str  # yes | no | maybe
+
+class PollRespondBody(BaseModel):
+    responses: List[PollResponseItem]
+
+@app.post("/polls/{pid}/respond")
+def respond_to_poll(pid: int, body: PollRespondBody, db: DbSession = Depends(get_db), user: User = Depends(get_current_user)):
+    poll = db.query(ActivityPoll).filter(ActivityPoll.id == pid, ActivityPoll.status == "open").first()
+    if not poll:
+        raise HTTPException(404, "Poll not found or not open")
+    for r in body.responses:
+        existing = db.query(ActivityPollResponse).filter(
+            ActivityPollResponse.poll_id == pid,
+            ActivityPollResponse.option_id == r.option_id,
+            ActivityPollResponse.user_id == user.id,
+        ).first()
+        if existing:
+            existing.status = r.status
+        else:
+            db.add(ActivityPollResponse(poll_id=pid, option_id=r.option_id, user_id=user.id, status=r.status))
+    db.commit()
+    return s_poll(poll, db, user.id)
+
+class PollConfirmBody(BaseModel):
+    option_id: int
+
+@app.put("/polls/{pid}/confirm")
+def confirm_poll(pid: int, body: PollConfirmBody, db: DbSession = Depends(get_db), user: User = Depends(get_current_user)):
+    poll = db.query(ActivityPoll).filter(ActivityPoll.id == pid).first()
+    if not poll:
+        raise HTTPException(404, "Poll not found")
+    if poll.created_by_id != user.id:
+        raise HTTPException(403, "Only the organizer can confirm")
+    poll.confirmed_option_id = body.option_id
+    poll.status = "confirmed"
+    db.commit()
+    return s_poll(poll, db, user.id)
+
+@app.delete("/polls/{pid}")
+def delete_poll(pid: int, db: DbSession = Depends(get_db), user: User = Depends(get_current_user)):
+    poll = db.query(ActivityPoll).filter(ActivityPoll.id == pid).first()
+    if not poll:
+        raise HTTPException(404, "Poll not found")
+    if poll.created_by_id != user.id:
+        raise HTTPException(403, "Only the organizer can delete")
+    db.query(ActivityPollResponse).filter(ActivityPollResponse.poll_id == pid).delete()
+    db.query(ActivityPollOption).filter(ActivityPollOption.poll_id == pid).delete()
+    db.delete(poll)
+    db.commit()
+    return {"ok": True}
+
+class PollFarewellBody(BaseModel):
+    farewell_payment_url: str
+
+@app.put("/polls/{pid}/farewell")
+def set_poll_farewell(pid: int, body: PollFarewellBody, db: DbSession = Depends(get_db), user: User = Depends(get_current_user)):
+    poll = db.query(ActivityPoll).filter(ActivityPoll.id == pid).first()
+    if not poll:
+        raise HTTPException(404, "Poll not found")
+    if poll.created_by_id == user.id:
+        raise HTTPException(403, "The organizer cannot set a farewell gift link")
+    poll.farewell_payment_url = body.farewell_payment_url.strip() or None
+    db.commit()
     return {"ok": True}

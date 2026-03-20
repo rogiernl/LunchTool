@@ -51,4 +51,12 @@ export const api = {
   takeSessionHost: (sid) => req('POST', `/sessions/${sid}/host`, {}),
   setSessionTotal: (sid, total_amount) => req('PUT', `/sessions/${sid}/total`, { total_amount }),
   settleSession: (sid) => req('PUT', `/sessions/${sid}/settle`, {}),
+  setFarewell: (sid, farewell_payment_url) => req('PUT', `/sessions/${sid}/farewell`, { farewell_payment_url }),
+
+  getPolls: () => req('GET', '/polls'),
+  createPoll: (data) => req('POST', '/polls', data),
+  respondToPoll: (pid, responses) => req('POST', `/polls/${pid}/respond`, { responses }),
+  confirmPoll: (pid, option_id) => req('PUT', `/polls/${pid}/confirm`, { option_id }),
+  deletePoll: (pid) => req('DELETE', `/polls/${pid}`),
+  setPollFarewell: (pid, farewell_payment_url) => req('PUT', `/polls/${pid}/farewell`, { farewell_payment_url }),
 }
