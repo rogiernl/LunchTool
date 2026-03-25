@@ -2,7 +2,7 @@ import os
 
 import httpx
 
-from ..config import OFFICE_ADDRESS
+from ..config import OFFICE_ADDRESS, load_settings
 
 
 async def enrich_geo(place):
@@ -23,11 +23,15 @@ async def enrich_geo(place):
                     place.lat = loc["lat"]
                     place.lng = loc["lng"]
 
+            settings = load_settings()
+            origin = settings.get("office_address", OFFICE_ADDRESS)
+            if settings.get("office_lat") and settings.get("office_lng"):
+                origin = f"{settings['office_lat']},{settings['office_lng']}"
             destination = f"{place.lat},{place.lng}" if place.lat and place.lng else place.address
             dm = await client.get(
                 "https://maps.googleapis.com/maps/api/distancematrix/json",
                 params={
-                    "origins": OFFICE_ADDRESS,
+                    "origins": origin,
                     "destinations": destination,
                     "mode": "walking",
                     "key": api_key,

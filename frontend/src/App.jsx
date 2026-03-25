@@ -227,7 +227,7 @@ export default function App() {
         )}
 
         {tab === 'places' && (
-          <PlacesView places={places} me={me} onRefresh={loadData} config={config} />
+          <PlacesView places={places} me={me} onRefresh={loadData} config={config} onConfigRefresh={loadData} />
         )}
 
         {tab === 'history' && (

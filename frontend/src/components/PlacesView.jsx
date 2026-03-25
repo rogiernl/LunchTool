@@ -344,10 +344,98 @@ function PlaceForm({ initial, onSave, onCancel, hasGoogleMaps, apiKey }) {
   )
 }
 
-export default function PlacesView({ places, me, onRefresh, config }) {
+function OfficeEditor({ config, onSave, onCancel }) {
+  const [officeName, setOfficeName] = useState(config?.office_name || '')
+  const [officeAddress, setOfficeAddress] = useState(config?.office_address || '')
+  const [lat, setLat] = useState(config?.office_lat ?? null)
+  const [lng, setLng] = useState(config?.office_lng ?? null)
+  const [showPicker, setShowPicker] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (lat == null || lng == null) { setError('Pick a location on the map'); return }
+    setSaving(true)
+    setError(null)
+    try {
+      await onSave({ office_lat: lat, office_lng: lng, office_name: officeName || null, office_address: officeAddress || null })
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow p-5">
+      <h3 className="text-sm font-semibold text-gray-700 mb-4">Office location</h3>
+      <form onSubmit={handleSubmit} className="space-y-3">
+        {error && <div className="bg-red-50 border border-red-200 rounded p-2 text-red-700 text-sm">{error}</div>}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Office name</label>
+          <input
+            type="text"
+            value={officeName}
+            onChange={(e) => setOfficeName(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Address (for walking distance)</label>
+          <input
+            type="text"
+            value={officeAddress}
+            onChange={(e) => setOfficeAddress(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+          />
+        </div>
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-sm font-medium text-gray-700">Pin location *</label>
+            <button
+              type="button"
+              onClick={() => setShowPicker((v) => !v)}
+              className="text-xs font-medium text-orange-600 hover:text-orange-800"
+            >
+              {showPicker ? 'Hide map' : lat != null ? 'Edit on map' : 'Set on map'}
+            </button>
+          </div>
+          {lat != null && !showPicker && (
+            <p className="text-xs text-gray-500 font-mono">{lat.toFixed(5)}, {lng.toFixed(5)}</p>
+          )}
+          {showPicker && (
+            <CoordPicker
+              apiKey={config?.google_maps_api_key}
+              lat={lat}
+              lng={lng}
+              onChange={(newLat, newLng) => { setLat(newLat); setLng(newLng) }}
+              onClose={() => setShowPicker(false)}
+            />
+          )}
+        </div>
+        <div className="flex gap-2 pt-1">
+          <button
+            type="submit"
+            disabled={saving || lat == null}
+            className="flex-1 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 disabled:opacity-50"
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+          <button type="button" onClick={onCancel} className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+export default function PlacesView({ places, me, onRefresh, config, onConfigRefresh }) {
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [showMap, setShowMap] = useState(false)
+  const [showOfficeEditor, setShowOfficeEditor] = useState(false)
   const [error, setError] = useState(null)
   const googleMapsApiKey = config?.google_maps_api_key
 
@@ -374,11 +462,29 @@ export default function PlacesView({ places, me, onRefresh, config }) {
     }
   }
 
+  const handleSaveOffice = async (data) => {
+    await api.updateOfficeConfig(data)
+    setShowOfficeEditor(false)
+    if (onConfigRefresh) await onConfigRefresh()
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold text-gray-900">Lunch Places</h2>
         <div className="flex items-center gap-2">
+          {googleMapsApiKey && (
+            <button
+              onClick={() => { setShowOfficeEditor((v) => !v); setShowAddForm(false) }}
+              className={`py-2 px-4 text-sm rounded-lg font-medium transition-colors border ${
+                showOfficeEditor
+                  ? 'bg-blue-50 border-blue-200 text-blue-700'
+                  : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              Office
+            </button>
+          )}
           {googleMapsApiKey && places.some((p) => p.lat) && (
             <button
               onClick={() => setShowMap((v) => !v)}
@@ -401,6 +507,10 @@ export default function PlacesView({ places, me, onRefresh, config }) {
           )}
         </div>
       </div>
+
+      {showOfficeEditor && (
+        <OfficeEditor config={config} onSave={handleSaveOffice} onCancel={() => setShowOfficeEditor(false)} />
+      )}
 
       {showMap && <MapView places={places} config={config} />}
 

@@ -15,6 +15,7 @@ async function req(method, path, body) {
 
 export const api = {
   getConfig: () => req('GET', '/config'),
+  updateOfficeConfig: (data) => req('PUT', '/config/office', data),
   getWeather: () => req('GET', '/weather'),
   autocomplete: (q) => req('GET', `/places-autocomplete?q=${encodeURIComponent(q)}`),
   getPlaceDetails: (placeId) => req('GET', `/place-details/${placeId}`),

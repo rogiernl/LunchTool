@@ -1,24 +1,60 @@
 import logging
 import os
+from typing import Optional
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy.orm import Session as DbSession
 
 from ..auth import get_current_user
-from ..config import OFFICE_LAT, OFFICE_LNG
-from ..models import User
+from ..config import OFFICE_LAT, OFFICE_LNG, OFFICE_ADDRESS, OFFICE_NAME, load_settings, save_settings
+from ..database import get_db
+from ..models import LunchPlace, User
+from ..services.places import enrich_geo
 
 router = APIRouter()
 
 
 @router.get("/config")
 def get_config():
+    settings = load_settings()
     return {
         "google_maps_api_key": os.getenv("GOOGLE_MAPS_API_KEY", ""),
-        "office_lat": OFFICE_LAT,
-        "office_lng": OFFICE_LNG,
-        "office_name": "VodafoneZiggo Utrecht",
+        "office_lat": settings.get("office_lat", OFFICE_LAT),
+        "office_lng": settings.get("office_lng", OFFICE_LNG),
+        "office_address": settings.get("office_address", OFFICE_ADDRESS),
+        "office_name": settings.get("office_name", OFFICE_NAME),
     }
+
+
+class OfficeConfigUpdate(BaseModel):
+    office_lat: float
+    office_lng: float
+    office_name: Optional[str] = None
+    office_address: Optional[str] = None
+
+
+async def _recalculate_all_walking(db: DbSession):
+    places = db.query(LunchPlace).all()
+    for place in places:
+        await enrich_geo(place)
+    db.commit()
+
+
+@router.put("/config/office")
+async def update_office_config(
+    body: OfficeConfigUpdate,
+    background_tasks: BackgroundTasks,
+    db: DbSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    data = {k: v for k, v in body.dict().items() if v is not None}
+    data["office_lat"] = body.office_lat
+    data["office_lng"] = body.office_lng
+    save_settings(data)
+    background_tasks.add_task(_recalculate_all_walking, db)
+    return {"ok": True}
 
 
 @router.get("/weather")
