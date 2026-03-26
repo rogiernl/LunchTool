@@ -131,6 +131,76 @@ export default function VotingView({ session, places, me, onRefresh, onPlacesRef
         </div>
       )}
 
+      {/* Vote results */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-base font-semibold text-gray-900 mb-4">
+          Results {session.votes.length > 0 && `(${session.votes.filter(v => v.is_joining).length} joining)`}
+        </h2>
+
+        {session.votes.length === 0 ? (
+          <p className="text-gray-400 text-sm">No votes yet</p>
+        ) : (
+          <div className="space-y-4">
+            {sortedPlaces
+              .filter((p) => voteCounts[p.id] > 0)
+              .map((place) => {
+                const isWinner = winnerIds.includes(place.id)
+                const placeVotes = session.votes.filter((v) => v.lunch_place.id === place.id)
+                return (
+                  <div key={place.id}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span
+                        className={`font-medium ${
+                          isWinner ? 'text-orange-600' : 'text-gray-700'
+                        }`}
+                      >
+                        {place.name}
+                        {isWinner && (
+                          <span className="ml-2 text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
+                            leading
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-sm text-gray-500">
+                        {voteCounts[place.id]} vote{voteCounts[place.id] !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {placeVotes.map((v) => (
+                        <span
+                          key={v.id}
+                          className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                            v.is_joining
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-gray-100 text-gray-500 line-through'
+                          }`}
+                          title={v.note || (v.is_joining ? 'Joining' : 'Not joining')}
+                        >
+                          {displayName(v.user)}
+                          {v.note && <span className="ml-1 opacity-70">· {v.note}</span>}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+
+            {/* Not joining */}
+            {session.votes.filter((v) => !v.is_joining).length > 0 && (
+              <div className="pt-2 border-t border-gray-100">
+                <p className="text-xs text-gray-400">
+                  Not joining:{' '}
+                  {session.votes
+                    .filter((v) => !v.is_joining)
+                    .map((v) => displayName(v.user))
+                    .join(', ')}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Vote form */}
       {session.can_vote && (
         <div className="bg-white rounded-lg shadow p-6">
@@ -244,76 +314,6 @@ export default function VotingView({ session, places, me, onRefresh, onPlacesRef
           )}
         </div>
       )}
-
-      {/* Vote results */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-base font-semibold text-gray-900 mb-4">
-          Results {session.votes.length > 0 && `(${session.votes.filter(v => v.is_joining).length} joining)`}
-        </h2>
-
-        {session.votes.length === 0 ? (
-          <p className="text-gray-400 text-sm">No votes yet</p>
-        ) : (
-          <div className="space-y-4">
-            {sortedPlaces
-              .filter((p) => voteCounts[p.id] > 0)
-              .map((place) => {
-                const isWinner = winnerIds.includes(place.id)
-                const placeVotes = session.votes.filter((v) => v.lunch_place.id === place.id)
-                return (
-                  <div key={place.id}>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span
-                        className={`font-medium ${
-                          isWinner ? 'text-orange-600' : 'text-gray-700'
-                        }`}
-                      >
-                        {place.name}
-                        {isWinner && (
-                          <span className="ml-2 text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
-                            leading
-                          </span>
-                        )}
-                      </span>
-                      <span className="text-sm text-gray-500">
-                        {voteCounts[place.id]} vote{voteCounts[place.id] !== 1 ? 's' : ''}
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {placeVotes.map((v) => (
-                        <span
-                          key={v.id}
-                          className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-                            v.is_joining
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-gray-100 text-gray-500 line-through'
-                          }`}
-                          title={v.note || (v.is_joining ? 'Joining' : 'Not joining')}
-                        >
-                          {displayName(v.user)}
-                          {v.note && <span className="ml-1 opacity-70">· {v.note}</span>}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )
-              })}
-
-            {/* Not joining */}
-            {session.votes.filter((v) => !v.is_joining).length > 0 && (
-              <div className="pt-2 border-t border-gray-100">
-                <p className="text-xs text-gray-400">
-                  Not joining:{' '}
-                  {session.votes
-                    .filter((v) => !v.is_joining)
-                    .map((v) => displayName(v.user))
-                    .join(', ')}
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
 
       {/* Become host */}
       {!session.can_vote && !session.host && (
