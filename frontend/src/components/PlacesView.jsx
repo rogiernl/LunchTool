@@ -372,6 +372,109 @@ function PlaceForm({ initial, onSave, onCancel, hasGoogleMaps, apiKey }) {
   )
 }
 
+function TeamsSettings({ onClose }) {
+  const [webhookUrl, setWebhookUrl] = useState('')
+  const [loaded, setLoaded] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [error, setError] = useState(null)
+  const [success, setSuccess] = useState(null)
+
+  useEffect(() => {
+    api.getIntegrations().then((data) => {
+      setWebhookUrl(data.teams_webhook_url || '')
+      setLoaded(true)
+    }).catch(() => setLoaded(true))
+  }, [])
+
+  const handleSave = async (e) => {
+    e.preventDefault()
+    setSaving(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      await api.updateIntegrations({ teams_webhook_url: webhookUrl.trim() || null })
+      setSuccess('Saved.')
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleTest = async () => {
+    if (!webhookUrl.trim()) return
+    setTesting(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      await api.updateIntegrations({ teams_webhook_url: webhookUrl.trim() })
+      const res = await fetch(webhookUrl.trim(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: '✅ LunchTool Teams integration is working!' }),
+      })
+      setSuccess(res.ok ? 'Test message sent!' : `Webhook returned ${res.status}`)
+    } catch (e) {
+      setError('Could not reach the webhook URL (check browser CORS or test from backend).')
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow p-5">
+      <h3 className="text-sm font-semibold text-gray-700 mb-1">Teams integration</h3>
+      <p className="text-xs text-gray-400 mb-4">
+        In Teams, create a Workflow: <span className="italic">Post to a channel when a webhook request is received</span>. Paste the URL below.
+        Notifications are sent when voting opens, when a place is confirmed, and when pickup is ready.
+      </p>
+      {!loaded ? (
+        <p className="text-sm text-gray-400">Loading…</p>
+      ) : (
+        <form onSubmit={handleSave} className="space-y-3">
+          {error && <div className="bg-red-50 border border-red-200 rounded p-2 text-red-700 text-sm">{error}</div>}
+          {success && <div className="bg-green-50 border border-green-200 rounded p-2 text-green-700 text-sm">{success}</div>}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Webhook URL</label>
+            <input
+              type="url"
+              value={webhookUrl}
+              onChange={(e) => setWebhookUrl(e.target.value)}
+              placeholder="https://prod-xx.westeurope.logic.azure.com/…"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-1 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 disabled:opacity-50"
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              type="button"
+              onClick={handleTest}
+              disabled={testing || !webhookUrl.trim()}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+            >
+              {testing ? 'Sending…' : 'Test'}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
+            >
+              Close
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
+  )
+}
+
 function OfficeEditor({ config, onSave, onCancel }) {
   const [officeName, setOfficeName] = useState(config?.office_name || '')
   const [officeAddress, setOfficeAddress] = useState(config?.office_address || '')
@@ -464,6 +567,7 @@ export default function PlacesView({ places, me, onRefresh, config, onConfigRefr
   const [editingId, setEditingId] = useState(null)
   const [showMap, setShowMap] = useState(false)
   const [showOfficeEditor, setShowOfficeEditor] = useState(false)
+  const [showTeams, setShowTeams] = useState(false)
   const [error, setError] = useState(null)
   const googleMapsApiKey = config?.google_maps_api_key
 
@@ -501,9 +605,19 @@ export default function PlacesView({ places, me, onRefresh, config, onConfigRefr
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold text-gray-900">Lunch Places</h2>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setShowTeams((v) => !v); setShowOfficeEditor(false); setShowAddForm(false) }}
+            className={`py-2 px-4 text-sm rounded-lg font-medium transition-colors border ${
+              showTeams
+                ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            Teams
+          </button>
           {googleMapsApiKey && (
             <button
-              onClick={() => { setShowOfficeEditor((v) => !v); setShowAddForm(false) }}
+              onClick={() => { setShowOfficeEditor((v) => !v); setShowTeams(false); setShowAddForm(false) }}
               className={`py-2 px-4 text-sm rounded-lg font-medium transition-colors border ${
                 showOfficeEditor
                   ? 'bg-blue-50 border-blue-200 text-blue-700'
@@ -535,6 +649,10 @@ export default function PlacesView({ places, me, onRefresh, config, onConfigRefr
           )}
         </div>
       </div>
+
+      {showTeams && (
+        <TeamsSettings onClose={() => setShowTeams(false)} />
+      )}
 
       {showOfficeEditor && (
         <OfficeEditor config={config} onSave={handleSaveOffice} onCancel={() => setShowOfficeEditor(false)} />

@@ -57,6 +57,22 @@ async def update_office_config(
     return {"ok": True}
 
 
+@router.get("/config/integrations")
+def get_integrations(_: User = Depends(get_current_user)):
+    settings = load_settings()
+    return {"teams_webhook_url": settings.get("teams_webhook_url", "")}
+
+
+class IntegrationsUpdate(BaseModel):
+    teams_webhook_url: Optional[str] = None
+
+
+@router.put("/config/integrations")
+def update_integrations(body: IntegrationsUpdate, _: User = Depends(get_current_user)):
+    save_settings({"teams_webhook_url": body.teams_webhook_url or ""})
+    return {"ok": True}
+
+
 @router.get("/weather")
 async def get_weather(_: User = Depends(get_current_user)):
     key = os.getenv("WEERLIVE_KEY")

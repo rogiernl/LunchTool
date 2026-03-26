@@ -1,6 +1,6 @@
 from datetime import date, datetime, time, timedelta
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session as DbSession
 
 from ..auth import get_current_user
@@ -19,14 +19,18 @@ from ..schemas import (
 )
 from ..serializers import s_order, s_place, s_session, s_user, s_vote
 from ..services.images import save_session_image
+from ..services.notifications import notify_teams
 from ..services.sessions import get_today, voting_open
 
 router = APIRouter()
 
 
 @router.get("/session/today")
-def get_session(db: DbSession = Depends(get_db), _: User = Depends(get_current_user)):
+def get_session(background_tasks: BackgroundTasks, db: DbSession = Depends(get_db), _: User = Depends(get_current_user)):
+    is_new = not db.query(LunchSession).filter(LunchSession.date == date.today()).first()
     session = get_today(db)
+    if is_new:
+        background_tasks.add_task(notify_teams, "🗳️ Vote is open for today's lunch! Cast your vote now.")
     votes = db.query(SessionVote).filter(SessionVote.session_id == session.id).all()
     orders = db.query(SessionOrder).filter(SessionOrder.session_id == session.id).all()
     return {
@@ -82,7 +86,7 @@ def extend_vote(db: DbSession = Depends(get_db), _: User = Depends(get_current_u
 
 
 @router.post("/session/today/host")
-def take_host(body: HostCreate, db: DbSession = Depends(get_db), user: User = Depends(get_current_user)):
+def take_host(body: HostCreate, background_tasks: BackgroundTasks, db: DbSession = Depends(get_db), user: User = Depends(get_current_user)):
     session = get_today(db)
     if session.host_id and session.host_id != user.id:
         raise HTTPException(400, "Session already has a host")
@@ -95,6 +99,9 @@ def take_host(body: HostCreate, db: DbSession = Depends(get_db), user: User = De
     session.selected_place_id = body.selected_place_id
     session.status = "ordering"
     db.commit()
+
+    joining = db.query(SessionVote).filter(SessionVote.session_id == session.id, SessionVote.is_joining == True).count()
+    background_tasks.add_task(notify_teams, f"🏆 Today we're going to **{place.name}**! {joining} people joining.")
     return {"ok": True}
 
 
@@ -109,7 +116,7 @@ def set_payment(body: PaymentCreate, db: DbSession = Depends(get_db), user: User
 
 
 @router.put("/session/today/pickup")
-def set_pickup(body: PickupCreate, db: DbSession = Depends(get_db), user: User = Depends(get_current_user)):
+def set_pickup(body: PickupCreate, background_tasks: BackgroundTasks, db: DbSession = Depends(get_db), user: User = Depends(get_current_user)):
     session = get_today(db)
     if session.host_id != user.id:
         raise HTTPException(403, "Only the host can set pickup info")
@@ -117,6 +124,7 @@ def set_pickup(body: PickupCreate, db: DbSession = Depends(get_db), user: User =
     session.pickup_time = body.pickup_time
     session.status = "pickup"
     db.commit()
+    background_tasks.add_task(notify_teams, f"📦 Pickup at **{body.pickup_location}** at {body.pickup_time} — go collect your order!")
     return {"ok": True}
 
 
