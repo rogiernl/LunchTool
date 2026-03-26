@@ -111,5 +111,7 @@ def run_migrations():
     _add_column_if_missing("lunch_sessions", "place_name", "TEXT")
     _add_column_if_missing("lunch_sessions", "farewell_payment_url", "TEXT")
     _add_column_if_missing("activity_polls", "farewell_payment_url", "TEXT")
+    _add_column_if_missing("lunch_places", "category", "TEXT")
+    _add_column_if_missing("session_votes", "note", "TEXT")
     _remove_lunch_sessions_date_unique()
     _convert_heic_images()

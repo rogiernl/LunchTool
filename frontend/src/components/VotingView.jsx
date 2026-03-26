@@ -33,6 +33,7 @@ function useCountdown(deadlineISO) {
 export default function VotingView({ session, places, me, onRefresh, onPlacesRefresh }) {
   const [selectedPlaceId, setSelectedPlaceId] = useState(null)
   const [isJoining, setIsJoining] = useState(true)
+  const [note, setNote] = useState('')
   const [loading, setLoading] = useState(false)
   const [showHostForm, setShowHostForm] = useState(false)
   const [hostPlaceId, setHostPlaceId] = useState('')
@@ -46,6 +47,7 @@ export default function VotingView({ session, places, me, onRefresh, onPlacesRef
     if (myVote) {
       setSelectedPlaceId(myVote.lunch_place.id)
       setIsJoining(myVote.is_joining)
+      setNote(myVote.note || '')
     }
   }, [])
 
@@ -70,7 +72,7 @@ export default function VotingView({ session, places, me, onRefresh, onPlacesRef
     setLoading(true)
     setError(null)
     try {
-      await api.castVote({ lunch_place_id: selectedPlaceId, is_joining: isJoining })
+      await api.castVote({ lunch_place_id: selectedPlaceId, is_joining: isJoining, note: note.trim() || null })
       await onRefresh()
     } catch (e) {
       setError(e.message)
@@ -182,6 +184,11 @@ export default function VotingView({ session, places, me, onRefresh, onPlacesRef
                         <div className="text-xs text-gray-400">{place.address}</div>
                       )}
                       <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                        {place.category === 'lunch_in' && (
+                          <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
+                            Lunch in
+                          </span>
+                        )}
                         {place.has_order_ahead && (
                           <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
                             Order ahead
@@ -200,7 +207,7 @@ export default function VotingView({ session, places, me, onRefresh, onPlacesRef
                 ))}
               </div>
 
-              <label className="flex items-center gap-2 mb-4 cursor-pointer select-none">
+              <label className="flex items-center gap-2 mb-3 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={isJoining}
@@ -209,6 +216,17 @@ export default function VotingView({ session, places, me, onRefresh, onPlacesRef
                 />
                 <span className="text-sm text-gray-700">I'm joining for lunch</span>
               </label>
+
+              <div className="mb-4">
+                <input
+                  type="text"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Add a note (optional)"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 placeholder-gray-400"
+                  maxLength={200}
+                />
+              </div>
 
               <button
                 onClick={handleVote}
@@ -265,9 +283,10 @@ export default function VotingView({ session, places, me, onRefresh, onPlacesRef
                               ? 'bg-green-100 text-green-700'
                               : 'bg-gray-100 text-gray-500 line-through'
                           }`}
-                          title={v.is_joining ? 'Joining' : 'Not joining'}
+                          title={v.note || (v.is_joining ? 'Joining' : 'Not joining')}
                         >
                           {displayName(v.user)}
+                          {v.note && <span className="ml-1 opacity-70">· {v.note}</span>}
                         </span>
                       ))}
                     </div>

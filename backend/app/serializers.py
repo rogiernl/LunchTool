@@ -18,6 +18,7 @@ def s_place(place, db=None, user_id=None):
         "address": place.address,
         "google_rating": place.google_rating,
         "has_order_ahead": place.has_order_ahead,
+        "category": place.category or "dine_in",
         "lat": place.lat,
         "lng": place.lng,
         "walking_minutes": place.walking_minutes,
@@ -53,6 +54,7 @@ def s_vote(vote: SessionVote):
         "user": s_user(vote.user),
         "lunch_place": s_place(vote.lunch_place),
         "is_joining": vote.is_joining,
+        "note": vote.note,
     }
 
 

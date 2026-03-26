@@ -62,6 +62,7 @@ def cast_vote(body: VoteCreate, db: DbSession = Depends(get_db), user: User = De
     if vote:
         vote.lunch_place_id = body.lunch_place_id
         vote.is_joining = body.is_joining
+        vote.note = body.note
     else:
         vote = SessionVote(session_id=session.id, user_id=user.id, **body.model_dump())
         db.add(vote)

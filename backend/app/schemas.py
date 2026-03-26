@@ -14,6 +14,7 @@ class PlaceCreate(BaseModel):
     address: Optional[str] = None
     google_rating: Optional[float] = None
     has_order_ahead: bool = False
+    category: Optional[str] = "dine_in"
     lat: Optional[float] = None
     lng: Optional[float] = None
 
@@ -21,6 +22,7 @@ class PlaceCreate(BaseModel):
 class VoteCreate(BaseModel):
     lunch_place_id: int
     is_joining: bool = True
+    note: Optional[str] = None
 
 
 class HostCreate(BaseModel):
