@@ -148,24 +148,47 @@ export default function VotingView({ session, places, me, onRefresh, onPlacesRef
                 const placeVotes = session.votes.filter((v) => v.lunch_place.id === place.id)
                 return (
                   <div key={place.id}>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span
-                        className={`font-medium ${
-                          isWinner ? 'text-orange-600' : 'text-gray-700'
-                        }`}
-                      >
-                        {place.name}
-                        {isWinner && (
-                          <span className="ml-2 text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
-                            leading
-                          </span>
-                        )}
-                      </span>
-                      <span className="text-sm text-gray-500">
+                    <div className="flex items-start justify-between mb-1">
+                      <div>
+                        <span className={`font-medium ${isWinner ? 'text-orange-600' : 'text-gray-700'}`}>
+                          {place.name}
+                          {isWinner && (
+                            <span className="ml-2 text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
+                              leading
+                            </span>
+                          )}
+                        </span>
+                        <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                          {place.description && (
+                            <span className="text-xs text-gray-500">{place.description}</span>
+                          )}
+                          {place.walking_minutes != null && (
+                            <span className="inline-flex items-center gap-1 text-xs text-gray-400">
+                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <circle cx="12" cy="5" r="1.5" fill="currentColor" stroke="none"/>
+                                <path d="M9 12l2-4 3 3-1 5"/>
+                                <path d="M7 17l2-2M14 10l2 2-1 5"/>
+                              </svg>
+                              {place.walking_minutes} min
+                            </span>
+                          )}
+                          {place.category === 'dine_in' && (
+                            <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">Dine in</span>
+                          )}
+                          {place.category === 'lunch_in' && (
+                            <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">Lunch in</span>
+                          )}
+                          {place.has_order_ahead && (
+                            <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">Order ahead</span>
+                          )}
+                          <StarRating rating={place.google_rating} />
+                        </div>
+                      </div>
+                      <span className="text-sm text-gray-500 shrink-0 ml-3">
                         {voteCounts[place.id]} vote{voteCounts[place.id] !== 1 ? 's' : ''}
                       </span>
                     </div>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
                       {placeVotes.map((v) => (
                         <span
                           key={v.id}
