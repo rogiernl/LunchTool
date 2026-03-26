@@ -172,7 +172,7 @@ function PlaceForm({ initial, onSave, onCancel, hasGoogleMaps, apiKey }) {
   const [address, setAddress] = useState(initial?.address || '')
   const [googleRating, setGoogleRating] = useState(initial?.google_rating ?? null)
   const [hasOrderAhead, setHasOrderAhead] = useState(initial?.has_order_ahead || false)
-  const [category, setCategory] = useState(initial?.category || 'dine_in')
+  const [category, setCategory] = useState(initial?.category || 'pick_up')
   const [lat, setLat] = useState(initial?.lat ?? null)
   const [lng, setLng] = useState(initial?.lng ?? null)
   const [showPicker, setShowPicker] = useState(false)
@@ -319,7 +319,7 @@ function PlaceForm({ initial, onSave, onCancel, hasGoogleMaps, apiKey }) {
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1.5">Category</label>
         <div className="flex gap-2">
-          {[{ value: 'dine_in', label: 'Dine in' }, { value: 'lunch_in', label: 'Lunch in' }].map(({ value, label }) => (
+          {[{ value: 'pick_up', label: 'Pick up' }, { value: 'dine_in', label: 'Dine in' }, { value: 'lunch_in', label: 'Lunch in' }].map(({ value, label }) => (
             <label
               key={value}
               className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border-2 cursor-pointer text-sm font-medium transition-colors ${
@@ -579,6 +579,11 @@ export default function PlacesView({ places, me, onRefresh, config, onConfigRefr
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold text-gray-900">{place.name}</span>
+                      {place.category === 'dine_in' && (
+                        <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                          Dine in
+                        </span>
+                      )}
                       {place.category === 'lunch_in' && (
                         <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
                           Lunch in

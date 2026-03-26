@@ -184,6 +184,11 @@ export default function VotingView({ session, places, me, onRefresh, onPlacesRef
                         <div className="text-xs text-gray-400">{place.address}</div>
                       )}
                       <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                        {place.category === 'dine_in' && (
+                          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                            Dine in
+                          </span>
+                        )}
                         {place.category === 'lunch_in' && (
                           <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
                             Lunch in

@@ -18,7 +18,7 @@ def s_place(place, db=None, user_id=None):
         "address": place.address,
         "google_rating": place.google_rating,
         "has_order_ahead": place.has_order_ahead,
-        "category": place.category or "dine_in",
+        "category": place.category or "pick_up",
         "lat": place.lat,
         "lng": place.lng,
         "walking_minutes": place.walking_minutes,

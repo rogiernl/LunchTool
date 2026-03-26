@@ -14,7 +14,7 @@ class PlaceCreate(BaseModel):
     address: Optional[str] = None
     google_rating: Optional[float] = None
     has_order_ahead: bool = False
-    category: Optional[str] = "dine_in"
+    category: Optional[str] = "pick_up"
     lat: Optional[float] = None
     lng: Optional[float] = None
 
